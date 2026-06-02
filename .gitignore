@@ -34,6 +34,7 @@ ERP_TEST_REPORTS/
 
 # Local tooling / browser QA artifacts
 .tools/
+.admin-frontend-deploy/
 .chrome-events-shot/
 chrome-video-qa/
 chrome-video-fullscreen-qa*/
