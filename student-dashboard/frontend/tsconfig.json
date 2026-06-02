@@ -2,6 +2,7 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
+    "capacitor.config.ts",
     "vite.config.ts",
     "eslint.config.js"
   ],
@@ -30,4 +31,3 @@
     }
   }
 }
-
