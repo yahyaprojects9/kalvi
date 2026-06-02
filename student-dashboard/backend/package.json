@@ -1,0 +1,40 @@
+{
+  "name": "kalvi-thozhan-backend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch server.js",
+    "start": "node server.js",
+    "db:migrate": "node scripts/migrate.js",
+    "db:seed": "node scripts/seed-students.js",
+    "db:verify": "node scripts/verify-supabase.js",
+    "auth:verify": "node scripts/verify-auth-flow.js",
+    "admin:seed": "node scripts/seed-admin.js",
+    "admin:verify": "node scripts/verify-admin.js",
+    "flow:verify": "node scripts/verify-student-admin-flow.js",
+    "direct:verify": "node scripts/verify-direct-supabase-flow.js",
+    "videos:seed": "node scripts/seed-youtube-videos.js",
+    "videos:verify": "node scripts/verify-youtube-videos.js",
+    "materials:import": "node scripts/import-drive-materials.js",
+    "materials:zip-import": "node scripts/import-material-zip.js",
+    "materials:verify": "node scripts/verify-materials.js",
+    "books:import:5": "node scripts/import-book-pdfs.js 5",
+    "books:import:10": "node scripts/import-book-pdfs.js 10",
+    "books:import:12": "node scripts/import-book-pdfs.js 12",
+    "books:verify": "node scripts/verify-books.js",
+    "build": "node scripts/check-js.js",
+    "supabase": "supabase",
+    "supabase:login": "supabase login",
+    "supabase:link": "supabase link --project-ref dgrtixahrbesogmtwxai",
+    "supabase:db:push": "supabase db push"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.106.0",
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "kalvi-thozhan": "file:..",
+    "pg": "^8.21.0"
+  }
+}

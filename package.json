@@ -1,0 +1,33 @@
+{
+  "name": "kalvi-thozhan",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "student-dashboard/backend",
+    "student-dashboard/frontend"
+  ],
+  "scripts": {
+    "install:all": "npm --prefix student-dashboard/backend install && npm --prefix student-dashboard/frontend install",
+    "db:migrate": "npm --prefix student-dashboard/backend run db:migrate",
+    "db:seed": "npm --prefix student-dashboard/backend run db:seed",
+    "db:verify": "npm --prefix student-dashboard/backend run db:verify",
+    "auth:verify": "npm --prefix student-dashboard/backend run auth:verify",
+    "admin:seed": "npm --prefix student-dashboard/backend run admin:seed",
+    "admin:verify": "npm --prefix student-dashboard/backend run admin:verify",
+    "flow:verify": "npm --prefix student-dashboard/backend run flow:verify",
+    "direct:verify": "npm --prefix student-dashboard/backend run direct:verify",
+    "videos:seed": "npm --prefix student-dashboard/backend run videos:seed",
+    "videos:verify": "npm --prefix student-dashboard/backend run videos:verify",
+    "materials:import": "npm --prefix student-dashboard/backend run materials:import",
+    "materials:zip-import": "npm --prefix student-dashboard/backend run materials:zip-import",
+    "materials:verify": "npm --prefix student-dashboard/backend run materials:verify",
+    "books:import:5": "npm --prefix student-dashboard/backend run books:import:5",
+    "books:import:10": "npm --prefix student-dashboard/backend run books:import:10",
+    "books:import:12": "npm --prefix student-dashboard/backend run books:import:12",
+    "books:verify": "npm --prefix student-dashboard/backend run books:verify",
+    "dev": "node scripts/dev.js",
+    "admin:dev": "node scripts/admin-dev.js",
+    "frontend:dev": "npm --prefix student-dashboard/frontend run dev",
+    "build": "npm --prefix student-dashboard/backend run build && npm --prefix student-dashboard/frontend run build"
+  }
+}

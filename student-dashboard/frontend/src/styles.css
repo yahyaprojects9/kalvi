@@ -1,0 +1,197 @@
+@import "tailwindcss" source(none);
+@source ".";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --font-sans: "Noto Sans Tamil", "Inter", system-ui, sans-serif;
+  --font-display: "Noto Sans Tamil", "Inter", system-ui, sans-serif;
+}
+
+:root {
+  --radius: 1rem;
+  /* Light cream background */
+  --background: oklch(0.985 0.012 95);
+  --foreground: oklch(0.18 0.015 230);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.015 230);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.015 230);
+
+  /* Bright yellow-green primary */
+  --primary: oklch(0.78 0.22 130);
+  --primary-foreground: oklch(0.18 0.04 140);
+
+  /* Deep charcoal as secondary surface */
+  --secondary: oklch(0.22 0.018 230);
+  --secondary-foreground: oklch(0.98 0.01 95);
+
+  --muted: oklch(0.95 0.015 95);
+  --muted-foreground: oklch(0.45 0.02 230);
+
+  /* Safety orange accent */
+  --accent: oklch(0.72 0.21 50);
+  --accent-foreground: oklch(1 0 0);
+
+  --destructive: oklch(0.6 0.24 25);
+  --destructive-foreground: oklch(1 0 0);
+
+  --success: oklch(0.7 0.18 145);
+  --success-foreground: oklch(0.15 0.02 145);
+  --warning: oklch(0.78 0.18 80);
+  --warning-foreground: oklch(0.2 0.05 80);
+
+  --border: oklch(0.9 0.015 95);
+  --input: oklch(0.92 0.015 95);
+  --ring: oklch(0.78 0.22 130);
+
+  --chart-1: oklch(0.78 0.22 130);
+  --chart-2: oklch(0.72 0.21 50);
+  --chart-3: oklch(0.22 0.018 230);
+  --chart-4: oklch(0.65 0.18 200);
+  --chart-5: oklch(0.6 0.24 25);
+
+  --gradient-hero: linear-gradient(135deg, oklch(0.78 0.22 130) 0%, oklch(0.72 0.21 50) 100%);
+  --gradient-card: linear-gradient(160deg, oklch(1 0 0) 0%, oklch(0.97 0.02 95) 100%);
+  --shadow-card: 0 2px 8px -2px oklch(0.22 0.018 230 / 0.08), 0 1px 3px oklch(0.22 0.018 230 / 0.04);
+  --shadow-lg: 0 12px 32px -8px oklch(0.22 0.018 230 / 0.18);
+}
+
+.dark {
+  --background: oklch(0.16 0.015 230);
+  --foreground: oklch(0.97 0.01 95);
+  --card: oklch(0.22 0.018 230);
+  --card-foreground: oklch(0.97 0.01 95);
+  --popover: oklch(0.22 0.018 230);
+  --popover-foreground: oklch(0.97 0.01 95);
+  --primary: oklch(0.78 0.22 130);
+  --primary-foreground: oklch(0.16 0.04 140);
+  --secondary: oklch(0.28 0.02 230);
+  --secondary-foreground: oklch(0.97 0.01 95);
+  --muted: oklch(0.25 0.02 230);
+  --muted-foreground: oklch(0.7 0.02 95);
+  --accent: oklch(0.72 0.21 50);
+  --accent-foreground: oklch(1 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.78 0.22 130);
+}
+
+@layer base {
+  * { border-color: var(--color-border); }
+  html[data-lang="en"] { --font-sans: "Inter", system-ui, sans-serif; }
+  html[data-lang="ta"],
+  html.font-tamil { --font-sans: "Noto Sans Tamil", "Inter", system-ui, sans-serif; }
+  html, body { font-family: var(--font-sans); }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer components {
+  .youtube-player {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+  }
+
+  .youtube-player-shell {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+
+  .youtube-player-frame {
+    width: 100%;
+    height: 100%;
+  }
+
+  .youtube-player:fullscreen,
+  .youtube-player:-webkit-full-screen,
+  .youtube-player-shell:fullscreen,
+  .youtube-player-shell:-webkit-full-screen,
+  .youtube-player-frame:fullscreen,
+  .youtube-player-frame:-webkit-full-screen {
+    position: fixed !important;
+    left: 50% !important;
+    top: 50% !important;
+    z-index: 2147483647 !important;
+    width: min(100vw, calc(100dvh * 16 / 9)) !important;
+    height: min(100dvh, calc(100vw * 9 / 16)) !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    aspect-ratio: 16 / 9 !important;
+    background: #000 !important;
+    overflow: hidden !important;
+    transform: translate(-50%, -50%) !important;
+  }
+
+  .youtube-player:fullscreen::backdrop,
+  .youtube-player-shell:fullscreen::backdrop,
+  .youtube-player-frame:fullscreen::backdrop {
+    background: #000;
+  }
+
+  .youtube-player:fullscreen .youtube-player-shell,
+  .youtube-player:-webkit-full-screen .youtube-player-shell,
+  .youtube-player:fullscreen .youtube-player-frame,
+  .youtube-player:-webkit-full-screen .youtube-player-frame,
+  .youtube-player-shell:fullscreen .youtube-player-frame,
+  .youtube-player-shell:-webkit-full-screen .youtube-player-frame {
+    position: absolute !important;
+    left: 50% !important;
+    top: 50% !important;
+    width: min(100vw, calc(100dvh * 16 / 9)) !important;
+    height: min(100dvh, calc(100vw * 9 / 16)) !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    aspect-ratio: 16 / 9 !important;
+    transform: translate(-50%, -50%) !important;
+  }
+}

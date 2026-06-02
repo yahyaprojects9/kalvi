@@ -1,0 +1,24 @@
+{
+  "rootFolderId": "1UvAbbvesA3uPZ1B1hlHjT75_lfCcoUO-",
+  "rootFolderUrl": "https://drive.google.com/drive/folders/1UvAbbvesA3uPZ1B1hlHjT75_lfCcoUO-?usp=drive_link",
+  "discoveryStatus": "blocked",
+  "notes": [
+    "Google Drive did not expose folder contents to unauthenticated requests.",
+    "This fallback keeps only the known folder hierarchy from the user request.",
+    "No PDF file names or file IDs are guessed."
+  ],
+  "folders": [
+    { "path": "Guides/Class 5/Term 1", "class": "5", "term": "Term 1" },
+    { "path": "Guides/Class 5/Term 2", "class": "5", "term": "Term 2" },
+    { "path": "Guides/Class 5/Term 3", "class": "5", "term": "Term 3" },
+    { "path": "Guides/Class 10", "class": "10", "term": null },
+    { "path": "Guides/Class 12", "class": "12", "term": null }
+  ],
+  "materials": [],
+  "inaccessible": [
+    {
+      "folderId": "1UvAbbvesA3uPZ1B1hlHjT75_lfCcoUO-",
+      "reason": "Drive folder requires Google authentication or API credentials for automated listing."
+    }
+  ]
+}
