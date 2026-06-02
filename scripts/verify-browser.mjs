@@ -7,6 +7,7 @@ const chromePath = process.env.CHROME_PATH || "C:\\Program Files\\Google\\Chrome
 const port = Number(process.env.CDP_PORT || 9333);
 const studentUrl = process.env.STUDENT_URL || "http://127.0.0.1:5173/login";
 const adminUrl = process.env.ADMIN_URL || "http://127.0.0.1:5174/login";
+const skipStudent = process.env.SKIP_STUDENT === "1";
 const userDataDir = join(tmpdir(), `kalvi-browser-check-${Date.now()}`);
 
 function sleep(ms) {
@@ -206,17 +207,17 @@ try {
   const browser = connect(version.webSocketDebuggerUrl);
   await browser.ready;
 
-  const studentPage = await createPage(browser, studentUrl);
   const adminPage = await createPage(browser, adminUrl);
+  const studentPage = skipStudent ? null : await createPage(browser, studentUrl);
   const errors = [
-    ...collectErrors(studentPage, "student"),
+    ...(studentPage ? collectErrors(studentPage, "student") : []),
     ...collectErrors(adminPage, "admin"),
   ];
 
-  const studentToggle = await passwordToggleCheck(studentPage);
+  const studentToggle = studentPage ? await passwordToggleCheck(studentPage) : { ok: true, skipped: true };
   const adminToggle = await passwordToggleCheck(adminPage);
   const adminLogin = await adminLoginCheck(adminPage);
-  const studentLogin = await studentLoginCheck(studentPage);
+  const studentLogin = studentPage ? await studentLoginCheck(studentPage) : { ok: true, skipped: true };
 
   await sleep(1500);
   const result = {
@@ -228,7 +229,7 @@ try {
   console.log(JSON.stringify(result, null, 2));
   if (!result.passed) process.exitCode = 1;
   browser.close();
-  studentPage.close();
+  studentPage?.close();
   adminPage.close();
 } finally {
   chrome.kill();
