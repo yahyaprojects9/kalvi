@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { findMockStudent } from "@/lib/mock-data";
+import { findMockStudent, logMockActivity } from "@/lib/mock-data";
 
 export const STUDENT_AUTH_KEY = "kalvi_student_auth";
 
@@ -7,6 +7,9 @@ type ApiOptions = { method?: string; body?: any };
 export type ApiListResponse<T> = { success?: boolean; data: T[] };
 export type ApiRowResponse<T> = { success?: boolean; data: T };
 
+const API_BASE_URL = String(
+  import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? "http://localhost:4000" : ""),
+).replace(/\/$/, "");
 const DEMO_EMAILS: Record<string, string> = {
   "9000010001": "kavi@kalvi.test",
   "9000010002": "arun@kalvi.test",
@@ -83,6 +86,30 @@ export function getStudentAuthToken(): string {
   }
 }
 
+async function backendRequest<T>(path: string, options: ApiOptions = {}): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: options.method ?? "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${getStudentAuthToken()}`,
+    },
+    body: options.method && options.method !== "GET" ? JSON.stringify(options.body ?? {}) : undefined,
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message =
+      typeof payload?.error === "string"
+        ? payload.error
+        : typeof payload?.message === "string"
+          ? payload.message
+          : `Request failed with status ${response.status}`;
+    throw new Error(message);
+  }
+
+  return payload as T;
+}
+
 export async function apiRequest<T>(path: string, options: ApiOptions = {}): Promise<T> {
   const method = options.method ?? "GET";
   const body = options.body ?? {};
@@ -90,11 +117,18 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
   const params = new URLSearchParams(rawQuery);
 
   if (rawPath === "/api/auth/login" && method === "POST") {
+    const mockStudent = findMockStudent(String(body.mobile_number ?? ""), String(body.password ?? ""));
     const { data, error } = await supabase.auth.signInWithPassword({
       email: studentEmail(body.mobile_number),
       password: String(body.password ?? ""),
     });
-    if (error) throw new Error("Invalid mobile number or password");
+    if (error) {
+      if (mockStudent) {
+        logMockActivity(mockStudent.profile);
+        return ok({ token: `mock-${mockStudent.key}`, student: mockStudent.profile }) as T;
+      }
+      throw new Error("Invalid mobile number or password");
+    }
     const student = await requireStudent();
     return ok({ token: data.session?.access_token ?? "", student }) as T;
   }
@@ -171,25 +205,11 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
   }
 
   if (rawPath === "/api/feedback" && method === "POST") {
-    const student = await requireStudent();
-    const { data, error } = await supabase.from("feedback").insert({
-      student_id: student.id,
-      student_name: student.full_name,
-      mobile_number: student.mobile_number,
-      category: "general",
-      district: student.district,
-      status: "new",
-      message: String(body.message ?? "").trim(),
-    }).select("*").single();
-    if (error) throw new Error(error.message);
-    return ok(data) as T;
+    return backendRequest<T>(rawPath, { method, body });
   }
 
   if (rawPath === "/api/feedback/my") {
-    const student = await requireStudent();
-    const { data, error } = await supabase.from("feedback").select("*").eq("student_id", student.id).order("created_at", { ascending: false });
-    if (error) throw new Error(error.message);
-    return ok(data ?? []) as T;
+    return backendRequest<T>(rawPath);
   }
 
   if (rawPath === "/api/student-problems" && method === "POST") {

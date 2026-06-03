@@ -3,11 +3,12 @@ import { spawn } from "node:child_process";
 const commands = [
   { name: "frontend", args: ["--prefix", "student-dashboard/frontend", "run", "dev"] },
 ];
+const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
 const children = commands.map(({ name, args }) => {
-  const child = spawn("npm", args, {
+  const child = spawn(npmCommand, args, {
     stdio: "inherit",
-    shell: process.platform === "win32",
+    shell: false,
   });
   child.on("exit", (code) => {
     if (code) {

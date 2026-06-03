@@ -6,11 +6,12 @@ const commands = [
     args: ["--prefix", "admin-dashboard/tamil-kalvi-monitor-main/frontend", "run", "dev"],
   },
 ];
+const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
 const children = commands.map(({ name, args }) => {
-  const child = spawn("npm", args, {
+  const child = spawn(npmCommand, args, {
     stdio: "inherit",
-    shell: process.platform === "win32",
+    shell: false,
   });
   child.on("exit", (code) => {
     if (code) {

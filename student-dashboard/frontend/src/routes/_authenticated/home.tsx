@@ -9,6 +9,7 @@ import { getLocalItems, SEED_EVENTS, SEED_MATERIALS, SEED_NOTIFICATIONS, SEED_VI
 import { classesMatch, eventVisibleToProfile, notificationVisibleToProfile } from "@/lib/content-filters";
 import { resolveProfileName } from "@/lib/name-localization";
 import { GovIdentity } from "@/components/gov-brand";
+import { GeminiLauncher } from "@/components/gemini-launcher";
 import { apiRequest, type ApiListResponse } from "@/lib/api";
 
 export const Route = createFileRoute("/_authenticated/home")({
@@ -84,6 +85,7 @@ function HomePage() {
             {stats.notifications > 0 && <span className="absolute -right-0.5 -top-0.5 rounded-full bg-accent px-1.5 text-[9px] font-bold text-accent-foreground">{stats.notifications}</span>}
           </Link>
           <LangToggle className="text-secondary-foreground hover:bg-white/10" />
+          <GeminiLauncher />
           <button
             type="button"
             aria-label="Open menu"

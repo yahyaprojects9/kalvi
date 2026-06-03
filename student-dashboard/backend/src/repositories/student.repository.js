@@ -3,6 +3,62 @@ import { randomUUID } from "node:crypto";
 import { getSupabase } from "../config/supabase.js";
 
 const STUDENT_FIELDS = "id, full_name, gender, mobile_number, school_name, class, district, created_at, updated_at";
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i;
+const DEMO_EMAILS = {
+  "kavi@kalvi.test": "9000010001",
+  "arun@kalvi.test": "9000010002",
+  "arul@kalvi.test": "9000010003",
+};
+const MOCK_STUDENTS = {
+  kavi: {
+    full_name: "Kavi",
+    gender: "female",
+    mobile_number: "9000010001",
+    school_name: "Chennai Primary School, Saidapet",
+    class: "5",
+    district: "Chennai",
+  },
+  arun: {
+    full_name: "Arun",
+    gender: "male",
+    mobile_number: "9000010002",
+    school_name: "Government Higher Secondary School, Madurai",
+    class: "10",
+    district: "Madurai",
+  },
+  arul: {
+    full_name: "Arul",
+    gender: "male",
+    mobile_number: "9000010003",
+    school_name: "Government Girls HSS, Coimbatore",
+    class: "12",
+    district: "Coimbatore",
+  },
+  mockid: {
+    full_name: "Kavi Arul",
+    gender: "female",
+    mobile_number: "9876543210",
+    school_name: "Government Higher Secondary School, Madurai",
+    class: "10",
+    district: "Madurai",
+  },
+  mock5: {
+    full_name: "Yaazhini",
+    gender: "female",
+    mobile_number: "9876500005",
+    school_name: "Chennai Primary School, Saidapet",
+    class: "5",
+    district: "Chennai",
+  },
+  mock12: {
+    full_name: "Nila Kumar",
+    gender: "female",
+    mobile_number: "9876500012",
+    school_name: "Government Girls HSS, Coimbatore",
+    class: "12",
+    district: "Coimbatore",
+  },
+};
 
 export function normalizeClass(value) {
   const normalized = String(value ?? "").trim().toUpperCase();
@@ -92,6 +148,12 @@ export async function authenticateStudent(mobileNumber, password, deviceInfo) {
 
 export async function getStudentBySession(token) {
   if (!token) return null;
+  if (token.startsWith("mock-")) {
+    return getMockStudentSession(token);
+  }
+  if (!UUID_PATTERN.test(token)) {
+    return getSupabaseStudentSession(token);
+  }
   const { data, error } = await getSupabase()
     .from("student_sessions")
     .select("id, logout_time, students(*)")
@@ -104,6 +166,60 @@ export async function getStudentBySession(token) {
     sessionId: data.id,
     student: sanitizeStudent(data.students),
   };
+}
+
+async function getSupabaseStudentSession(token) {
+  const supabase = getSupabase();
+  const { data: userData, error: userError } = await supabase.auth.getUser(token);
+  if (userError || !userData.user) return null;
+
+  const { data: authStudent, error: authStudentError } = await supabase
+    .from("students")
+    .select(STUDENT_FIELDS)
+    .eq("auth_user_id", userData.user.id)
+    .maybeSingle();
+  if (authStudentError) throw authStudentError;
+  if (authStudent) return { sessionId: token, student: sanitizeStudent(authStudent) };
+
+  const mobileNumber = DEMO_EMAILS[String(userData.user.email ?? "").toLowerCase()];
+  if (!mobileNumber) return null;
+
+  const { data: mobileStudent, error: mobileStudentError } = await supabase
+    .from("students")
+    .select(STUDENT_FIELDS)
+    .eq("mobile_number", mobileNumber)
+    .maybeSingle();
+  if (mobileStudentError) throw mobileStudentError;
+  if (!mobileStudent) return null;
+
+  return { sessionId: token, student: sanitizeStudent(mobileStudent) };
+}
+
+async function getMockStudentSession(token) {
+  const key = token.slice("mock-".length).toLowerCase();
+  const mockStudent = MOCK_STUDENTS[key];
+  if (!mockStudent) return null;
+
+  const supabase = getSupabase();
+  const { data: existing, error: existingError } = await supabase
+    .from("students")
+    .select(STUDENT_FIELDS)
+    .eq("mobile_number", mockStudent.mobile_number)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (existing) return { sessionId: token, student: sanitizeStudent(existing) };
+
+  const { data, error } = await supabase
+    .from("students")
+    .insert({
+      ...mockStudent,
+      password_hash: "mock-account",
+    })
+    .select(STUDENT_FIELDS)
+    .single();
+  if (error) throw error;
+
+  return { sessionId: token, student: sanitizeStudent(data) };
 }
 
 export async function endStudentSession(token) {
