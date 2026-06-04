@@ -43,4 +43,4 @@ Password: admin123
 
 ## Student app
 
-The student Capacitor app will read from the same Supabase project. Admin changes (events, announcements, content) appear there after refresh.
+The student web app will read from the same Supabase project. Admin changes (events, announcements, content) appear there after refresh.

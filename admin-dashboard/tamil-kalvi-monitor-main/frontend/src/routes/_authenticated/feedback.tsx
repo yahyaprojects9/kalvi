@@ -25,7 +25,10 @@ function FeedbackPage() {
 
   const filtered = useMemo(() => items.filter((i) =>
     (status === "All" || i.status === status) &&
-    (!q || i.student_name?.toLowerCase().includes(q.toLowerCase()) || i.message?.toLowerCase().includes(q.toLowerCase()))
+    (!q ||
+      i.student_name?.toLowerCase().includes(q.toLowerCase()) ||
+      i.message?.toLowerCase().includes(q.toLowerCase()) ||
+      i.feedback_ref?.toLowerCase().includes(q.toLowerCase()))
   ), [items, q, status]);
 
   function openItem(i: any) { setOpen(i); setReply(i.admin_response ?? ""); setEditStatus(i.status ?? "new"); }
@@ -52,6 +55,8 @@ function FeedbackPage() {
               <div className="min-w-0"><div className="font-medium truncate">{f.student_name ?? "Student"}</div><div className="text-xs text-muted-foreground">{f.mobile_number ?? ""}</div></div>
               <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded bg-secondary">{f.status}</span>
             </div>
+            <div className="mt-2 text-xs font-semibold text-primary">{f.feedback_ref ?? f.id}</div>
+            {f.subject && <div className="mt-1 text-xs text-muted-foreground">{f.subject}</div>}
             <p className="mt-2 text-sm line-clamp-2">{f.message}</p>
             <div className="text-[10px] text-muted-foreground mt-2">{new Date(f.created_at).toLocaleString()}</div>
           </Card>
@@ -61,7 +66,9 @@ function FeedbackPage() {
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Feedback Details</DialogTitle></DialogHeader>
           {open && <div className="space-y-3">
+            <div className="text-xs font-semibold text-primary">{open.feedback_ref ?? open.id}</div>
             <div className="text-sm"><b>{open.student_name ?? "Student"}</b></div>
+            {open.subject && <div className="text-xs text-muted-foreground">{open.subject}</div>}
             <Card className="p-3 bg-secondary"><p className="text-sm">{open.message}</p></Card>
             <Textarea value={reply} onChange={(e) => setReply(e.target.value)} rows={4} placeholder="Write response..." />
             <Select value={editStatus} onValueChange={setEditStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select>

@@ -48,9 +48,13 @@ function LoginPage() {
           password: studentPw,
         },
       });
-      setStudentAuth(response.data.token, response.data.student);
-      nav({ to: "/home" });
+
+      if (response && response.data) {
+        setStudentAuth(response.data.token, response.data.student);
+        await nav({ to: "/home" });
+      }
     } catch (error) {
+      console.error("Login error:", error);
       toast.error(error instanceof Error ? error.message : t("invalidCreds"));
     } finally {
       setLoading(false);
@@ -58,8 +62,8 @@ function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <main className="mx-auto flex min-h-screen max-w-md flex-col px-5 py-8">
+    <div className="min-h-full bg-background">
+      <main className="mx-auto flex min-h-full max-w-md flex-col px-5 py-8">
         <GovIdentity className="mb-3" />
         <div className="mb-6 flex justify-end">
           <LangToggle />

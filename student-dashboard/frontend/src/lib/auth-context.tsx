@@ -121,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(auth.student);
     setRole("student");
     setMock(auth.token.startsWith(MOCK_TOKEN_PREFIX));
+    setLoading(false);
     loadProfile().catch(() => {
       if (!auth.token.startsWith(MOCK_TOKEN_PREFIX)) {
         localStorage.removeItem(STUDENT_AUTH_KEY);
@@ -128,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null);
         setRole(null);
       }
-    }).finally(() => setLoading(false));
+    });
   }, []);
 
   const signOut = async () => {

@@ -19,7 +19,7 @@ function NotFoundComponent() {
   const lang: Lang =
     typeof window !== "undefined" && localStorage.getItem("appLanguage") === "ta" ? "ta" : "en";
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex min-h-full items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-primary">404</h1>
         <p className="mt-4 text-muted-foreground">{translate("pageNotFound", lang)}</p>
@@ -35,7 +35,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex min-h-full items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold">{translate("somethingWentWrong", lang)}</h1>
         <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>

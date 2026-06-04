@@ -10,7 +10,7 @@ import { classesMatch, eventVisibleToProfile, notificationVisibleToProfile } fro
 import { resolveProfileName } from "@/lib/name-localization";
 import { GovIdentity } from "@/components/gov-brand";
 import { GeminiLauncher } from "@/components/gemini-launcher";
-import { apiRequest, type ApiListResponse } from "@/lib/api";
+import { apiRequest, type ApiListResponse, type ApiRowResponse } from "@/lib/api";
 
 export const Route = createFileRoute("/_authenticated/home")({
   component: HomePage,
@@ -35,17 +35,16 @@ function HomePage() {
         const [materialsResponse, videosResponse, noticesResponse, eventsResponse] = await Promise.all([
           apiRequest<ApiListResponse<any>>(`/api/materials?class=${encodeURIComponent(profile.class)}`),
           apiRequest<ApiListResponse<any>>(`/api/videos?class=${encodeURIComponent(profile.class)}`),
-          apiRequest<ApiListResponse<any>>(`/api/notifications?target_class=${encodeURIComponent(profile.class)}`),
+          apiRequest<ApiRowResponse<{ unread: number }>>(`/api/notifications/unread-count?target_class=${encodeURIComponent(profile.class)}`),
           apiRequest<ApiListResponse<any>>("/api/events"),
         ]);
 
-        const safeNotices = (noticesResponse.data ?? []).filter((item) => notificationVisibleToProfile(item, profile, role));
         const safeEvents = (eventsResponse.data ?? []).filter((item) => eventVisibleToProfile(item, profile, role));
 
         setStats({
           materials: materialsResponse.data.length || fallbackMaterials.length,
           videos: videosResponse.data.length || fallbackVideos.length,
-          notifications: safeNotices.length || fallbackNotices.length,
+          notifications: noticesResponse.data?.unread ?? fallbackNotices.length,
           events: safeEvents.length || fallbackEvents.length,
         });
         setRecentMaterials(materialsResponse.data.length ? materialsResponse.data.slice(0, 4) : fallbackMaterials.slice(0, 4));

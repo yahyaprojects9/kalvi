@@ -4,7 +4,11 @@ import pg from "pg";
 import { assertRealDatabaseUrl, env } from "../src/config/env.js";
 
 const { Client } = pg;
-const migration = resolve(env.backendRoot, "supabase/migrations/20260601000000_student_app_supabase.sql");
+const migrations = [
+  "20260601000000_student_app_supabase.sql",
+  "20260604000000_anonymous_complaint_reply_notifications.sql",
+  "20260605000000_feedback_tracking_read_state.sql",
+].map((file) => resolve(env.backendRoot, "supabase/migrations", file));
 
 try {
   assertRealDatabaseUrl();
@@ -20,10 +24,12 @@ const client = new Client({
 
 try {
   await client.connect();
-  const sql = await readFile(migration, "utf8");
-  await client.query(sql);
+  for (const migration of migrations) {
+    const sql = await readFile(migration, "utf8");
+    await client.query(sql);
+    console.log(`PASS migration applied: ${migration.split(/[\\/]/).pop()}`);
+  }
   await client.query("notify pgrst, 'reload schema'");
-  console.log("PASS migration applied: 20260601000000_student_app_supabase.sql");
 } catch (error) {
   console.error("FAIL migration failed");
   console.error(error instanceof Error ? error.message : error);

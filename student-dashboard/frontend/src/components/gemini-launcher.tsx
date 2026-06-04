@@ -1,11 +1,18 @@
-const GEMINI_WEB_URL = "https://gemini.google.com/app";
+const GEMINI_WEB_URL = "https://gemini.google.com/";
 
 export function GeminiLauncher() {
+  const openGemini = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    const opened = window.open(GEMINI_WEB_URL, "_blank", "noopener,noreferrer");
+    if (!opened) window.location.assign(GEMINI_WEB_URL);
+  };
+
   return (
     <a
       href={GEMINI_WEB_URL}
       target="_blank"
       rel="noreferrer"
+      onClick={openGemini}
       aria-label="Open Gemini"
       title="Open Gemini"
       className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-black shadow-md backdrop-blur"

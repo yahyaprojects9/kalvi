@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import express from "express";
 import bcrypt from "bcrypt";
-import { getSupabase } from "../config/supabase.js";
+import { getDatabase } from "../config/database.js";
 
 const router = express.Router();
-const TABLES = new Set(["events", "feedback", "student_problems", "videos", "materials", "notifications"]);
+const TABLES = new Set(["events", "feedback", "student_problems", "complaints", "videos", "materials", "notifications"]);
 
 function cleanAdmin(row) {
   if (!row) return null;
@@ -16,15 +16,18 @@ async function requireAdmin(req, res, next) {
   try {
     const token = String(req.headers.authorization ?? "").replace(/^Bearer\s+/i, "");
     if (!token) return res.status(401).json({ success: false, error: "Admin token required" });
-    const { data, error } = await getSupabase()
-      .from("admin_sessions")
-      .select("id,expires_at,admin:admin_users(id,name,email,role,created_at)")
-      .eq("token", token)
-      .gt("expires_at", new Date().toISOString())
-      .maybeSingle();
-    if (error) throw error;
-    if (!data?.admin) return res.status(401).json({ success: false, error: "Invalid admin token" });
-    req.admin = cleanAdmin(data.admin);
+    const { rows } = await getDatabase().query(
+      `
+        select au.id, au.name, au.email, au.role, au.created_at
+        from public.admin_sessions s
+        join public.admin_users au on au.id = s.admin_id
+        where s.token = $1 and s.expires_at > now()
+        limit 1
+      `,
+      [token],
+    );
+    if (!rows[0]) return res.status(401).json({ success: false, error: "Invalid admin token" });
+    req.admin = cleanAdmin(rows[0]);
     next();
   } catch (error) {
     next(error);
@@ -36,58 +39,82 @@ function pick(body, keys) {
 }
 
 async function count(table, filters = {}) {
-  let query = getSupabase().from(table).select("id", { head: true, count: "exact" });
-  for (const [key, value] of Object.entries(filters)) query = query.eq(key, value);
-  const { count: total, error } = await query;
-  if (error) throw error;
-  return total ?? 0;
+  const values = [];
+  const clauses = [];
+  for (const [key, value] of Object.entries(filters)) {
+    values.push(value);
+    clauses.push(`"${key}" = $${values.length}`);
+  }
+  const where = clauses.length ? ` where ${clauses.join(" and ")}` : "";
+  const { rows } = await getDatabase().query(`select count(*)::int as total from public.${table}${where}`, values);
+  return rows[0]?.total ?? 0;
 }
 
 async function list(table, req, order = "created_at") {
   if (!TABLES.has(table)) throw new Error(`Unsupported admin table: ${table}`);
-  let query = getSupabase().from(table).select("*");
+  const values = [];
+  const clauses = [];
   for (const key of ["class", "gender", "district", "school_name", "status", "material_type"]) {
-    if (req.query[key]) query = query.eq(key, req.query[key]);
+    if (!req.query[key]) continue;
+    values.push(req.query[key]);
+    clauses.push(`"${key}" = $${values.length}`);
   }
-  const { data, error } = await query.order(order, { ascending: false });
-  if (error) throw error;
-  return data ?? [];
+  if (table === "notifications") clauses.push("coalesce(is_active, true) = true");
+  const where = clauses.length ? ` where ${clauses.join(" and ")}` : "";
+  const select =
+    table === "complaints"
+      ? "id, complaint_type, subject, description, district, school_name, class, status, admin_response, created_at, updated_at"
+      : "*";
+  const { rows } = await getDatabase().query(`select ${select} from public.${table}${where} order by "${order}" desc`, values);
+  return rows;
 }
 
 async function create(table, body, keys) {
-  const { data, error } = await getSupabase().from(table).insert(pick(body, keys)).select("*").single();
-  if (error) throw error;
-  return data;
+  const row = pick(body, keys);
+  const columns = Object.keys(row);
+  if (!columns.length) throw new Error("No fields to create");
+  const values = Object.values(row);
+  const placeholders = values.map((_, index) => `$${index + 1}`);
+  const { rows } = await getDatabase().query(
+    `insert into public.${table} (${columns.map((key) => `"${key}"`).join(", ")}) values (${placeholders.join(", ")}) returning *`,
+    values,
+  );
+  return rows[0];
 }
 
 async function patch(table, id, body, keys) {
-  const { data, error } = await getSupabase()
-    .from(table)
-    .update({ ...pick(body, keys), updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .select("*")
-    .single();
-  if (error) throw error;
-  return data;
+  const row = { ...pick(body, keys), updated_at: new Date().toISOString() };
+  const columns = Object.keys(row);
+  const values = Object.values(row);
+  if (!columns.length) throw new Error("No fields to update");
+  const assignments = columns.map((key, index) => `"${key}" = $${index + 1}`);
+  values.push(id);
+  const returning =
+    table === "complaints"
+      ? "id, complaint_type, subject, description, district, school_name, class, status, admin_response, created_at, updated_at"
+      : "*";
+  const { rows } = await getDatabase().query(
+    `update public.${table} set ${assignments.join(", ")} where id = $${values.length} returning ${returning}`,
+    values,
+  );
+  return rows[0] ?? null;
 }
 
 async function remove(table, id) {
-  const { error } = await getSupabase().from(table).delete().eq("id", id);
-  if (error) throw error;
+  await getDatabase().query(`delete from public.${table} where id = $1`, [id]);
 }
 
 router.post("/login", async (req, res, next) => {
   try {
     const email = String(req.body.email ?? "").trim().toLowerCase();
     const password = String(req.body.password ?? "");
-    const { data: admin, error } = await getSupabase().from("admin_users").select("*").eq("email", email).maybeSingle();
-    if (error) throw error;
+    const { rows } = await getDatabase().query("select * from public.admin_users where email = $1 limit 1", [email]);
+    const admin = rows[0];
     if (!admin || !(await bcrypt.compare(password, admin.password_hash))) {
       return res.status(401).json({ success: false, error: "Invalid admin credentials" });
     }
     const token = randomUUID();
-    const { error: sessionError } = await getSupabase().from("admin_sessions").insert({ admin_id: admin.id, token });
-    if (sessionError) throw sessionError;
+    await getDatabase().query("insert into public.admin_sessions (admin_id, token) values ($1, $2)", [admin.id, token]);
     res.json({ success: true, data: { token, admin: cleanAdmin(admin) } });
   } catch (error) {
     next(error);
@@ -100,9 +127,7 @@ router.get("/me", (req, res) => res.json({ success: true, data: req.admin }));
 
 router.get("/stats", async (_req, res, next) => {
   try {
-    const supabase = getSupabase();
-    const { data: students, error } = await supabase.from("students").select("class,district,gender");
-    if (error) throw error;
+    const { rows: students } = await getDatabase().query("select class, district, gender from public.students");
     const by = (key) => (students ?? []).reduce((acc, row) => ({ ...acc, [row[key] ?? "Unknown"]: (acc[row[key] ?? "Unknown"] ?? 0) + 1 }), {});
     res.json({ success: true, data: {
       total_students: students?.length ?? 0,
@@ -126,11 +151,19 @@ router.get("/stats", async (_req, res, next) => {
 
 router.get("/students", async (req, res, next) => {
   try {
-    let query = getSupabase().from("students").select("id,full_name,mobile_number,gender,class,school_name,district,created_at").order("created_at", { ascending: false });
-    for (const key of ["class", "gender", "district", "school_name"]) if (req.query[key]) query = query.eq(key, req.query[key]);
-    const { data, error } = await query;
-    if (error) throw error;
-    res.json({ success: true, data: data ?? [] });
+    const values = [];
+    const clauses = [];
+    for (const key of ["class", "gender", "district", "school_name"]) {
+      if (!req.query[key]) continue;
+      values.push(req.query[key]);
+      clauses.push(`"${key}" = $${values.length}`);
+    }
+    const where = clauses.length ? ` where ${clauses.join(" and ")}` : "";
+    const { rows } = await getDatabase().query(
+      `select id,full_name,mobile_number,gender,class,school_name,district,created_at from public.students${where} order by created_at desc`,
+      values,
+    );
+    res.json({ success: true, data: rows });
   } catch (error) {
     next(error);
   }
@@ -147,6 +180,9 @@ router.patch("/feedback/:id", async (req, res, next) => { try { res.json({ succe
 
 router.get("/student-problems", async (req, res, next) => { try { res.json({ success: true, data: await list("student_problems", req) }); } catch (e) { next(e); } });
 router.patch("/student-problems/:id", async (req, res, next) => { try { res.json({ success: true, data: await patch("student_problems", req.params.id, req.body, ["status", "admin_response"]) }); } catch (e) { next(e); } });
+
+router.get("/complaints", async (req, res, next) => { try { res.json({ success: true, data: await list("complaints", req) }); } catch (e) { next(e); } });
+router.patch("/complaints/:id", async (req, res, next) => { try { res.json({ success: true, data: await patch("complaints", req.params.id, req.body, ["status", "admin_response"]) }); } catch (e) { next(e); } });
 
 const videoKeys = ["title", "description", "class", "subject", "video_url", "url", "youtube_video_id", "thumbnail_url", "is_active"];
 router.get("/videos", async (req, res, next) => { try { res.json({ success: true, data: await list("videos", req) }); } catch (e) { next(e); } });

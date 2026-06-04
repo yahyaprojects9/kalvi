@@ -136,9 +136,9 @@ export async function createFeedback(row) {
   const { rows } = await getDatabase().query(
     `
       insert into public.feedback
-        (student_id, student_name, mobile_number, category, district, status, message)
+        (student_id, student_name, mobile_number, category, subject, district, status, message)
       values
-        ($1, $2, $3, $4, $5, $6, $7)
+        ($1, $2, $3, $4, $5, $6, $7, $8)
       returning *
     `,
     [
@@ -146,6 +146,7 @@ export async function createFeedback(row) {
       row.student_name ?? null,
       row.mobile_number ?? null,
       row.category ?? "general",
+      row.subject ?? row.category ?? "General",
       row.district ?? null,
       row.status ?? "new",
       row.message,
@@ -160,6 +161,91 @@ export async function listFeedbackByStudent(studentId) {
     [studentId],
   );
   return rows;
+}
+
+function studentNotificationWhere(student, startIndex = 1) {
+  const values = [student.id];
+  const clauses = [
+    "n.is_active = true",
+    `(
+      n.target_type = 'all'
+      or (n.target_type = 'student' and n.target_value = $${startIndex}::text)
+    `,
+  ];
+
+  if (student.class) {
+    values.push(student.class);
+    clauses[1] += ` or n.target_class = $${startIndex + values.length - 1} or (n.target_type = 'class' and n.target_value = $${startIndex + values.length - 1})`;
+  }
+  if (student.district) {
+    values.push(student.district);
+    clauses[1] += ` or n.district = $${startIndex + values.length - 1} or (n.target_type = 'district' and n.target_value = $${startIndex + values.length - 1})`;
+  }
+  if (student.school_name) {
+    values.push(student.school_name);
+    clauses[1] += ` or (n.target_type = 'school' and n.target_value = $${startIndex + values.length - 1})`;
+  }
+
+  clauses[1] += ")";
+  return { sql: clauses.join(" and "), values };
+}
+
+export async function listNotificationsForStudent(student, filters = {}) {
+  const where = studentNotificationWhere(student);
+  const values = [...where.values];
+  const extra = [];
+  if (filters.target_class) {
+    values.push(filters.target_class);
+    extra.push(`(n.target_class is null or n.target_class = $${values.length} or n.target_type in ('all', 'student'))`);
+  }
+
+  const { rows } = await getDatabase().query(
+    `
+      select
+        n.*,
+        case
+          when n.target_type = 'student' then coalesce(n.is_read, false)
+          else exists (
+            select 1 from public.announcement_reads ar
+            where ar.announcement_id = n.id and ar.student_id = $1
+          )
+        end as is_read
+      from public.notifications n
+      where ${where.sql}${extra.length ? ` and ${extra.join(" and ")}` : ""}
+      order by n.created_at desc
+    `,
+    values,
+  );
+  return rows.map((row) => normalizeContentRow("notifications", row));
+}
+
+export async function countUnreadNotifications(student, filters = {}) {
+  const rows = await listNotificationsForStudent(student, filters);
+  return rows.filter((row) => !row.is_read).length;
+}
+
+export async function markNotificationRead(student, notificationId) {
+  const notifications = await listNotificationsForStudent(student);
+  const notification = notifications.find((row) => row.id === notificationId);
+  if (!notification) return null;
+
+  if (notification.target_type === "student") {
+    const { rows } = await getDatabase().query(
+      "update public.notifications set is_read = true, updated_at = now() where id = $1 returning *",
+      [notificationId],
+    );
+    return normalizeContentRow("notifications", { ...rows[0], is_read: true });
+  }
+
+  await getDatabase().query(
+    `
+      insert into public.announcement_reads (announcement_id, student_id, read_at)
+      values ($1, $2, now())
+      on conflict (announcement_id, student_id) do update set read_at = excluded.read_at
+    `,
+    [notificationId, student.id],
+  );
+  return { ...notification, is_read: true };
 }
 
 export async function createStudentProblem(row) {
@@ -253,10 +339,10 @@ export async function getComplaint(id) {
   return rows[0] ?? null;
 }
 
-export async function updateComplaintStatus(id, status) {
+export async function updateComplaintStatus(id, patch) {
   const { rows } = await getDatabase().query(
-    "update public.complaints set status = $1, updated_at = $2 where id = $3 returning *",
-    [status, new Date().toISOString(), id],
+    "update public.complaints set status = $1, admin_response = $2, updated_at = $3 where id = $4 returning id, complaint_type, subject, description, district, school_name, class, status, admin_response, created_at, updated_at",
+    [patch.status, patch.admin_response ?? null, new Date().toISOString(), id],
   );
   return rows[0] ?? null;
 }

@@ -7,10 +7,13 @@ import {
   getComplaint,
   getRow,
   getStudentProblem,
+  countUnreadNotifications,
   listFeedbackByStudent,
   listComplaints,
+  listNotificationsForStudent,
   listRows,
   listStudentProblems,
+  markNotificationRead,
   updateComplaintStatus,
   updateStudentProblem,
 } from "../repositories/content.repository.js";
@@ -32,6 +35,7 @@ function asyncRoute(handler) {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ALLOWED_STATUSES = new Set(["open", "in_progress", "resolved", "closed"]);
+const ALLOWED_FEEDBACK_STATUSES = new Set(["new", "reviewed", "resolved", "closed"]);
 const ALLOWED_COMPLAINT_TYPES = new Set([
   "ragging",
   "harassment",
@@ -40,7 +44,7 @@ const ALLOWED_COMPLAINT_TYPES = new Set([
   "infrastructure_issue",
   "other",
 ]);
-const ALLOWED_COMPLAINT_STATUSES = new Set(["pending", "reviewing", "resolved"]);
+const ALLOWED_COMPLAINT_STATUSES = new Set(["pending", "in_progress", "resolved", "closed"]);
 
 function requiredString(body, field, maxLength) {
   const value = body?.[field];
@@ -167,13 +171,21 @@ function validateComplaint(body) {
   };
 }
 
-function validateComplaintStatus(body) {
+function validateComplaintStatusPatch(body) {
+  const patch = {};
   const status = requiredString(body, "status", 50);
   if (status.error) return { error: status.error };
   if (!ALLOWED_COMPLAINT_STATUSES.has(status.value)) {
     return { error: `status must be one of: ${Array.from(ALLOWED_COMPLAINT_STATUSES).join(", ")}` };
   }
-  return { value: status.value };
+  patch.status = status.value;
+  if ("admin_response" in (body ?? {})) {
+    patch.admin_response =
+      typeof body.admin_response === "string" && body.admin_response.trim()
+        ? body.admin_response.trim().slice(0, 5000)
+        : null;
+  }
+  return { value: patch };
 }
 
 async function requireAdmin(req, res) {
@@ -248,16 +260,55 @@ router.get("/events/:id", asyncRoute(async (req, res) => {
 }));
 
 router.get("/notifications", asyncRoute(async (req, res) => {
-  res.json({ data: await listRows("notifications", req.query) });
+  const header = req.get("authorization") ?? "";
+  if (!header.startsWith("Bearer ")) {
+    return res.json({ data: await listRows("notifications", req.query) });
+  }
+
+  const session = await requireStudent(req, res);
+  if (!session) return;
+  const studentId = await resolveStudentUuid(session.student);
+  if (!studentId) return res.json({ success: true, data: [] });
+  res.json({
+    success: true,
+    data: await listNotificationsForStudent({ ...session.student, id: studentId }, req.query),
+  });
+}));
+
+router.get("/notifications/unread-count", asyncRoute(async (req, res) => {
+  const session = await requireStudent(req, res);
+  if (!session) return;
+  const studentId = await resolveStudentUuid(session.student);
+  if (!studentId) return res.json({ success: true, data: { unread: 0 } });
+  res.json({
+    success: true,
+    data: { unread: await countUnreadNotifications({ ...session.student, id: studentId }, req.query) },
+  });
+}));
+
+router.patch("/notifications/:id/read", asyncRoute(async (req, res) => {
+  const session = await requireStudent(req, res);
+  if (!session) return;
+  const id = validateId(req, res);
+  if (!id) return;
+  const studentId = await resolveStudentUuid(session.student);
+  if (!studentId) return res.status(400).json({ success: false, error: "A real student profile is required" });
+  const row = await markNotificationRead({ ...session.student, id: studentId }, id);
+  if (!row) return res.status(404).json({ success: false, error: "Notification not found" });
+  res.json({ success: true, data: row });
 }));
 
 router.post("/feedback", asyncRoute(async (req, res) => {
   const session = await requireStudent(req, res);
   if (!session) return;
-  const { message } = req.body ?? {};
+  const { message, category, subject, status } = req.body ?? {};
 
   if (!message || typeof message !== "string") {
     return res.status(400).json({ error: "message is required" });
+  }
+  const feedbackStatus = typeof status === "string" && status.trim() ? status.trim() : "new";
+  if (!ALLOWED_FEEDBACK_STATUSES.has(feedbackStatus)) {
+    return res.status(400).json({ error: `status must be one of: ${Array.from(ALLOWED_FEEDBACK_STATUSES).join(", ")}` });
   }
 
   const studentId = await resolveStudentUuid(session.student);
@@ -269,9 +320,10 @@ router.post("/feedback", asyncRoute(async (req, res) => {
     student_id: studentId,
     student_name: session.student.full_name,
     mobile_number: session.student.mobile_number,
-    category: "general",
+    category: typeof category === "string" && category.trim() ? category.trim().slice(0, 100) : "general",
+    subject: typeof subject === "string" && subject.trim() ? subject.trim().slice(0, 255) : undefined,
     district: session.student.district,
-    status: "new",
+    status: feedbackStatus,
     message: message.trim(),
   });
 
@@ -431,7 +483,7 @@ router.patch("/complaints/:id", asyncRoute(async (req, res) => {
   const id = validateId(req, res);
   if (!id) return;
 
-  const validation = validateComplaintStatus(req.body);
+  const validation = validateComplaintStatusPatch(req.body);
   if (validation.error) {
     return res.status(400).json({ success: false, error: validation.error });
   }

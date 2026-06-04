@@ -152,21 +152,7 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
   const params = new URLSearchParams(rawQuery);
 
   if (rawPath === "/api/auth/login" && method === "POST") {
-    const mockStudent = findMockStudent(String(body.mobile_number ?? ""), String(body.password ?? ""));
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: studentEmail(body.mobile_number),
-      password: String(body.password ?? ""),
-    });
-    if (error) {
-      if (mockStudent) {
-        logMockActivity(mockStudent.profile);
-        const student = await resolveMockProfile(mockStudent.profile);
-        return ok({ token: `mock-${mockStudent.key}`, student }) as T;
-      }
-      throw new Error("Invalid mobile number or password");
-    }
-    const student = await requireStudent();
-    return ok({ token: data.session?.access_token ?? "", student }) as T;
+    return backendRequest<T>(rawPath, { method, body });
   }
 
   if (rawPath === "/api/auth/signup" && method === "POST") {
@@ -204,7 +190,7 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
 
   if (rawPath === "/api/students/me" || rawPath === "/api/auth/me") {
     const token = getStudentAuthToken();
-    if (token.startsWith("mock-")) {
+    if (token) {
       return backendRequest<T>(rawPath);
     }
     return ok(await requireStudent()) as T;
@@ -235,15 +221,12 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
     return ok(data ?? []) as T;
   }
 
-  if (rawPath === "/api/notifications") {
-    let query = supabase.from("notifications").select("*").eq("is_active", true);
-    const targetClass = params.get("target_class");
-    if (targetClass) {
-      query = query.or(`target_class.is.null,target_class.eq.${targetClass},target_type.eq.all,target_type.eq.student`);
-    }
-    const { data, error } = await query.order("created_at", { ascending: false });
-    if (error) throw new Error(error.message);
-    return ok(data ?? []) as T;
+  if (
+    rawPath === "/api/notifications" ||
+    rawPath === "/api/notifications/unread-count" ||
+    /^\/api\/notifications\/[0-9a-f-]+\/read$/i.test(rawPath)
+  ) {
+    return backendRequest<T>(path, { method, body });
   }
 
   if (rawPath === "/api/feedback" && method === "POST") {
@@ -251,7 +234,18 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
   }
 
   if (rawPath === "/api/feedback/my") {
-    return backendRequest<T>(rawPath);
+    try {
+      return await backendRequest<T>(rawPath);
+    } catch {
+      const student = await requireStudent();
+      const { data, error } = await supabase
+        .from("feedback")
+        .select("*")
+        .eq("student_id", student.id)
+        .order("created_at", { ascending: false });
+      if (error) throw new Error(error.message);
+      return ok(data ?? []) as T;
+    }
   }
 
   if (rawPath === "/api/student-problems" && method === "POST") {

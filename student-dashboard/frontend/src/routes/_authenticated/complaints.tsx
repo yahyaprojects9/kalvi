@@ -64,7 +64,7 @@ function ComplaintPage() {
 
     setLoading(true);
     try {
-      const result = await apiRequest<ComplaintResponse>("/api/complaints", {
+      const result = await apiRequest<any>("/api/complaints", {
         method: "POST",
         body: {
           student_id: profile?.id,
@@ -77,10 +77,16 @@ function ComplaintPage() {
           class: studentClass,
         },
       });
-      setComplaintId(result.data.id);
-      setSubject("");
-      setDescription("");
-      toast.success(t("anonymousComplaintSubmitted"));
+
+      const responseData = result?.data || result;
+      if (responseData && responseData.id) {
+        setComplaintId(responseData.id);
+        setSubject("");
+        setDescription("");
+        toast.success(t("anonymousComplaintSubmitted"));
+      } else {
+        throw new Error("Invalid response format");
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("somethingWentWrong"));
     } finally {

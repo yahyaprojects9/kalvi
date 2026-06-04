@@ -5,20 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite --configLoader native",
-    "build": "vite --configLoader native build --mode capacitor",
+    "build": "vite --configLoader native build",
     "build:web": "vite --configLoader native build",
     "build:dev": "vite --configLoader native build --mode development",
     "preview": "vite preview",
-    "cap:add:android": "cap add android",
-    "cap:sync:android": "cap sync android",
-    "cap:open:android": "cap open android",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
   "dependencies": {
-    "@capacitor/android": "^6.2.1",
-    "@capacitor/app": "^6.0.3",
-    "@capacitor/core": "^6.2.1",
     "@radix-ui/react-avatar": "^1.1.11",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-label": "^2.1.8",
@@ -45,7 +39,6 @@
     "vite-tsconfig-paths": "^6.0.2"
   },
   "devDependencies": {
-    "@capacitor/cli": "^6.2.1",
     "@eslint/js": "^9.32.0",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",

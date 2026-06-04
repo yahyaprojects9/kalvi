@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">Kalvi Thozhan</string>
-    <string name="title_activity_main">Kalvi Thozhan</string>
-    <string name="package_name">com.kalvithozhan.student</string>
-    <string name="custom_url_scheme">com.kalvithozhan.student</string>
-</resources>

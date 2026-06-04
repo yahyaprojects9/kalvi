@@ -2,12 +2,32 @@ import { supabase } from "@/integrations/supabase/client";
 
 const KEY = "kalvi_admin_auth";
 export type AdminAuth = { token: string; admin: { id: string; name?: string; email: string; role: string } };
+const API_BASE_URL = String(
+  import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? "http://localhost:4000" : ""),
+).replace(/\/$/, "");
 
 export function getAdminAuth(): AdminAuth | null {
   try { return JSON.parse(localStorage.getItem(KEY) ?? "null"); } catch { return null; }
 }
 export function setAdminAuth(auth: AdminAuth) { localStorage.setItem(KEY, JSON.stringify(auth)); }
 export function clearAdminAuth() { localStorage.removeItem(KEY); supabase.auth.signOut(); }
+
+async function backendAdminRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const auth = getAdminAuth();
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(auth?.token ? { Authorization: `Bearer ${auth.token}` } : {}),
+      ...(options.headers ?? {}),
+    },
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.error ?? payload?.message ?? `Request failed with status ${response.status}`);
+  }
+  return (payload?.data ?? payload) as T;
+}
 
 async function isAdmin(userId?: string) {
   if (!userId) return false;
@@ -20,19 +40,6 @@ async function requireAdmin() {
   const { data } = await supabase.auth.getUser();
   if (!data.user || !(await isAdmin(data.user.id))) throw new Error("Admin access is required");
   return data.user;
-}
-
-function complaintStatusMessage(status: string, reply?: string) {
-  const normalized = String(status ?? "").toLowerCase();
-  const base =
-    normalized === "resolved"
-      ? "Your anonymous complaint issue has been resolved."
-      : normalized === "closed"
-        ? "Your anonymous complaint has been closed."
-        : normalized === "in_progress"
-          ? "Your anonymous complaint is being reviewed."
-          : "Your anonymous complaint status has been updated.";
-  return reply?.trim() ? `${base}\n\nAdmin reply: ${reply.trim()}` : base;
 }
 
 function feedbackStatusMessage(status: string, reply?: string) {
@@ -63,27 +70,6 @@ async function getStudentNotificationTarget(studentId?: string | null) {
 async function insertNotification(payload: Record<string, any>) {
   const { error } = await supabase.from("notifications").insert(payload);
   if (error) throw new Error(error.message);
-}
-
-async function notifyComplaintStatus(complaint: any) {
-  const status = String(complaint?.status ?? "").trim();
-  if (!status) return;
-  const studentId = complaint?.student_id ? String(complaint.student_id) : complaint?.submitted_by ? String(complaint.submitted_by) : null;
-  const student = await getStudentNotificationTarget(studentId);
-  const targetClass = complaint?.class ? String(complaint.class) : student?.class ? String(student.class) : null;
-  const district = complaint?.district ? String(complaint.district) : student?.district ? String(student.district) : null;
-  const school = complaint?.school_name ? String(complaint.school_name) : student?.school_name ? String(student.school_name) : null;
-  const targetValue = studentId ?? targetClass ?? district ?? school ?? null;
-  const targetType = studentId ? "student" : targetClass ? "class" : district ? "district" : school ? "school" : "all";
-  await insertNotification({
-    title: "Anonymous complaint status update",
-    message: complaintStatusMessage(status, complaint?.admin_response),
-    target_type: targetType,
-    target_value: targetValue,
-    target_class: targetClass,
-    district,
-    is_active: true,
-  });
 }
 
 async function notifyFeedbackStatus(feedback: any) {
@@ -214,6 +200,10 @@ function idFromPath(path: string) {
 }
 
 export async function adminApi<T>(path: string, options: RequestInit = {}): Promise<T> {
+  if (path.startsWith("/api/admin")) {
+    return backendAdminRequest<T>(path, options);
+  }
+
   const method = options.method ?? "GET";
   const body = options.body ? JSON.parse(String(options.body)) : {};
 
@@ -267,6 +257,14 @@ export async function adminApi<T>(path: string, options: RequestInit = {}): Prom
       if (error) throw new Error(error.message);
       return (data ?? []) as T;
     }
+    if (table === "complaints") {
+      const { data, error } = await supabase
+        .from("complaints")
+        .select("id,complaint_type,subject,description,district,school_name,class,status,admin_response,created_at,updated_at")
+        .order("created_at", { ascending: false });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as T;
+    }
     return await list(table, table === "events" ? "event_date" : "created_at") as T;
   }
 
@@ -284,14 +282,12 @@ export async function adminApi<T>(path: string, options: RequestInit = {}): Prom
         : table === "complaints"
           ? { ...body, updated_at: new Date().toISOString() }
           : { ...body, updated_at: new Date().toISOString() };
-    const { data, error } = await supabase.from(table).update(payload).eq("id", idFromPath(path)).select("*").single();
+    const selectColumns =
+      table === "complaints"
+        ? "id,complaint_type,subject,description,district,school_name,class,status,admin_response,created_at,updated_at"
+        : "*";
+    const { data, error } = await supabase.from(table).update(payload).eq("id", idFromPath(path)).select(selectColumns).single();
     if (error) throw new Error(error.message);
-    if (table === "complaints" && ("status" in body || "admin_response" in body)) {
-      notifyInBackground(notifyComplaintStatus(data));
-    }
-    if (table === "feedback" && ("status" in body || "admin_response" in body)) {
-      notifyInBackground(notifyFeedbackStatus(data));
-    }
     return data as T;
   }
   if (method === "DELETE") {

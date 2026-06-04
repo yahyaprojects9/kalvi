@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Capacitor } from "@capacitor/core";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useLang } from "@/lib/lang-context";
@@ -41,7 +40,7 @@ function extractDriveFileId(url?: string | null) {
 function materialPreviewUrl(item: Material) {
   const fileId = item.drive_file_id ?? extractDriveFileId(item.file_url ?? item.url);
   if (fileId) return `https://drive.google.com/file/d/${fileId}/preview`;
-  return item.file_url ?? item.url ?? "";
+  return materialFallbackUrl(item);
 }
 
 function materialFallbackUrl(item: Material) {
@@ -55,11 +54,7 @@ function materialFastOpenUrl(item: Material) {
 }
 
 function materialViewerUrl(item: Material) {
-  if (!Capacitor.isNativePlatform()) return materialPreviewUrl(item);
-
-  const fastUrl = materialFastOpenUrl(item);
-  if (!fastUrl) return "";
-  return `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(fastUrl)}`;
+  return materialPreviewUrl(item);
 }
 
 function MaterialsPage() {
