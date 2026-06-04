@@ -208,6 +208,7 @@ export const dict = {
   category: { ta: "வகை", en: "Category" },
   profileClassDistrictRequired: { ta: "சுயவிவர வகுப்பு மற்றும் மாவட்டம் தேவை", en: "Profile class and district are required" },
   feedbackSubmitted: { ta: "கருத்து சமர்ப்பிக்கப்பட்டது", en: "Feedback submitted" },
+  adminReply: { ta: "நிர்வாக பதில்", en: "Admin reply" },
   special: { ta: "சிறப்பு", en: "Special" },
   safety: { ta: "பாதுகாப்பு", en: "Safety" },
   traffic: { ta: "போக்குவரத்து", en: "Traffic" },

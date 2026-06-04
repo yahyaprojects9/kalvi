@@ -86,6 +86,8 @@ const CATEGORY_BORDER_CLASSES: Record<EventCategory, string> = {
 
 const CATEGORY_PRIORITY: EventCategory[] = ["academics", "non-academics", "sports", "general"];
 const EVENTS_CATEGORY_STORAGE_KEY = "events:selected-category";
+const TODAY_CALENDAR_CLASSES = "ring-2 ring-violet-600 ring-offset-1 ring-offset-background bg-violet-50 text-violet-950";
+const SELECTED_CALENDAR_CLASSES = "ring-2 ring-slate-900 ring-inset";
 
 function parseISODate(value: any) {
   if (!value) return null;
@@ -241,6 +243,8 @@ function EventsPage() {
               const dayCategory = day ? getPrimaryCategory(dayEvents, selectedCategory) : null;
               const hasEvents = dayEvents.length > 0;
               const dayCategories = Array.from(new Set(dayEvents.map(getEventCategory)));
+              const isToday = day ? sameDay(day, today) : false;
+              const isSelected = day && selectedDate ? sameDay(day, selectedDate) : false;
 
               const dayClasses = hasEvents && dayCategory
                 ? `border-2 ${CATEGORY_BORDER_CLASSES[dayCategory]} bg-white shadow-sm`
@@ -256,15 +260,8 @@ function EventsPage() {
                   className={[
                     "flex h-10 min-w-0 flex-col items-center justify-center rounded-xl text-xs font-medium transition-all cursor-pointer",
                       day ? dayClasses : "border border-transparent",
-                    day && selectedDate && sameDay(day, selectedDate)
-                      ? dayCategory
-                        ? `ring-2 ${CATEGORY_BORDER_CLASSES[dayCategory].replace("border-", "ring-")} ring-inset`
-                        : "ring-2 ring-primary ring-inset"
-                      : day && sameDay(day, today)
-                        ? dayCategory
-                          ? `ring-2 ${CATEGORY_BORDER_CLASSES[dayCategory].replace("border-", "ring-")} ring-inset`
-                          : "ring-2 ring-primary ring-inset"
-                        : "",
+                    isSelected ? SELECTED_CALENDAR_CLASSES : "",
+                    isToday ? TODAY_CALENDAR_CLASSES : "",
                     hasEvents ? "hover:shadow-md" : "",
                     !day || !hasEvents ? "cursor-default" : "",
                   ].join(" ")}

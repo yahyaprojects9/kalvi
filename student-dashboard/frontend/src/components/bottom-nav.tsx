@@ -16,8 +16,8 @@ export function BottomNav() {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)] md:hidden">
-      <div className="mx-auto flex max-w-md items-stretch justify-between px-1">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)] md:left-64">
+      <div className="mx-auto flex max-w-md items-stretch justify-between px-1 md:max-w-2xl">
         {items.map((item) => {
           const active = loc.pathname.startsWith(item.to);
           const Icon = item.icon;

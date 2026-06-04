@@ -36,6 +36,7 @@ interface AuthCtx {
 }
 
 const Ctx = createContext<AuthCtx | null>(null);
+const MOCK_TOKEN_PREFIX = "mock-";
 
 function profileUser(profile: Profile): User {
   return {
@@ -88,17 +89,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(profileSession(token, student));
     setProfile(student);
     setRole("student");
-    setMock(false);
+    setMock(token.startsWith(MOCK_TOKEN_PREFIX));
   };
 
   const loadProfile = async () => {
-    const response = await apiRequest<ApiRowResponse<Profile>>("/api/students/me");
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token ?? getStoredStudentAuth()?.token ?? "";
-    localStorage.setItem(STUDENT_AUTH_KEY, JSON.stringify({ token, student: response.data }));
-    setSession(profileSession(token, response.data));
-    setProfile(response.data);
-    setRole("student");
+    try {
+      const response = await apiRequest<ApiRowResponse<Profile>>("/api/students/me");
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token ?? getStoredStudentAuth()?.token ?? "";
+      localStorage.setItem(STUDENT_AUTH_KEY, JSON.stringify({ token, student: response.data }));
+      setSession(profileSession(token, response.data));
+      setProfile(response.data);
+      setRole("student");
+    } catch (e) {
+      console.warn("Silent profile load failed:", e);
+      throw e;
+    }
   };
 
   const refresh = async () => {
@@ -114,11 +120,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(profileSession(auth.token, auth.student));
     setProfile(auth.student);
     setRole("student");
+    setMock(auth.token.startsWith(MOCK_TOKEN_PREFIX));
     loadProfile().catch(() => {
-      localStorage.removeItem(STUDENT_AUTH_KEY);
-      setSession(null);
-      setProfile(null);
-      setRole(null);
+      if (!auth.token.startsWith(MOCK_TOKEN_PREFIX)) {
+        localStorage.removeItem(STUDENT_AUTH_KEY);
+        setSession(null);
+        setProfile(null);
+        setRole(null);
+      }
     }).finally(() => setLoading(false));
   }, []);
 

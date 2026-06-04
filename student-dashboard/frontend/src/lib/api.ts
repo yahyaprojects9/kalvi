@@ -36,6 +36,41 @@ function ok<T>(data: T) {
   return { success: true, data };
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+async function resolveMockProfile(profile: {
+  id: string;
+  full_name: string;
+  emis_number?: string | null;
+  mobile_number?: string | null;
+  district?: string | null;
+  school_name?: string | null;
+  class?: string | null;
+  section?: string | null;
+  language_preference?: string;
+}) {
+  if (UUID_PATTERN.test(String(profile.id ?? ""))) return profile;
+  const mobile = normalizeMobile(String(profile.mobile_number ?? ""));
+  if (!mobile) return profile;
+  const { data, error } = await supabase
+    .from("students")
+    .select("id,full_name,mobile_number,district,school_name,class,section,language_preference")
+    .eq("mobile_number", mobile)
+    .maybeSingle();
+  if (error || !data?.id) return profile;
+  return {
+    ...profile,
+    id: data.id,
+    full_name: data.full_name ?? profile.full_name,
+    mobile_number: data.mobile_number ?? profile.mobile_number,
+    district: data.district ?? profile.district,
+    school_name: data.school_name ?? profile.school_name,
+    class: data.class ?? profile.class,
+    section: data.section ?? profile.section,
+    language_preference: data.language_preference ?? profile.language_preference ?? "ta",
+  };
+}
+
 async function requireStudent() {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) throw new Error("Student login is required");
@@ -125,7 +160,8 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
     if (error) {
       if (mockStudent) {
         logMockActivity(mockStudent.profile);
-        return ok({ token: `mock-${mockStudent.key}`, student: mockStudent.profile }) as T;
+        const student = await resolveMockProfile(mockStudent.profile);
+        return ok({ token: `mock-${mockStudent.key}`, student }) as T;
       }
       throw new Error("Invalid mobile number or password");
     }
@@ -167,6 +203,10 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
   }
 
   if (rawPath === "/api/students/me" || rawPath === "/api/auth/me") {
+    const token = getStudentAuthToken();
+    if (token.startsWith("mock-")) {
+      return backendRequest<T>(rawPath);
+    }
     return ok(await requireStudent()) as T;
   }
 
@@ -198,7 +238,9 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
   if (rawPath === "/api/notifications") {
     let query = supabase.from("notifications").select("*").eq("is_active", true);
     const targetClass = params.get("target_class");
-    if (targetClass) query = query.or(`target_class.is.null,target_class.eq.${targetClass},target_type.eq.all`);
+    if (targetClass) {
+      query = query.or(`target_class.is.null,target_class.eq.${targetClass},target_type.eq.all,target_type.eq.student`);
+    }
     const { data, error } = await query.order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     return ok(data ?? []) as T;
@@ -237,17 +279,7 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
   }
 
   if (rawPath === "/api/complaints" && method === "POST") {
-    const { data, error } = await supabase.from("complaints").insert({
-      complaint_type: body.complaint_type,
-      subject: body.subject,
-      description: body.description,
-      district: body.district,
-      school_name: body.school_name,
-      class: String(body.class ?? ""),
-      status: "pending",
-    }).select("*").single();
-    if (error) throw new Error(error.message);
-    return ok(data) as T;
+    return backendRequest<T>(rawPath, { method, body });
   }
 
   throw new Error(`Unsupported direct Supabase path: ${path}`);

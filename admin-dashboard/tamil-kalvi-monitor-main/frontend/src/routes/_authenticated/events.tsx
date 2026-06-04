@@ -108,7 +108,17 @@ function EventsPage() {
 
   async function remove(id: string) {
     await adminApi(`/api/admin/events/${id}`, { method: "DELETE" });
-    toast.success("Deleted"); load();
+    toast.success("Event moved to recycle", {
+      action: {
+        label: "Undo",
+        onClick: async () => {
+          await adminApi(`/api/admin/events/${id}`, { method: "PATCH", body: JSON.stringify({ is_active: true }) });
+          toast.success("Event restored");
+          load();
+        },
+      },
+    });
+    load();
   }
 
   // Calendar grid

@@ -25,7 +25,7 @@ function AuthenticatedLayout() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="pb-20 md:pb-0 md:pl-64">
+      <div className="pb-20 md:pl-64">
         <Outlet />
       </div>
       <SideNav />

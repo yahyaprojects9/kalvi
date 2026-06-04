@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Capacitor } from "@capacitor/core";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useLang } from "@/lib/lang-context";
@@ -45,6 +46,20 @@ function materialPreviewUrl(item: Material) {
 
 function materialFallbackUrl(item: Material) {
   return item.file_url ?? item.url ?? "";
+}
+
+function materialFastOpenUrl(item: Material) {
+  const fileId = item.drive_file_id ?? extractDriveFileId(item.file_url ?? item.url);
+  if (fileId) return `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`;
+  return materialFallbackUrl(item);
+}
+
+function materialViewerUrl(item: Material) {
+  if (!Capacitor.isNativePlatform()) return materialPreviewUrl(item);
+
+  const fastUrl = materialFastOpenUrl(item);
+  if (!fastUrl) return "";
+  return `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(fastUrl)}`;
 }
 
 function MaterialsPage() {
@@ -181,7 +196,7 @@ function MaterialsPage() {
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 <Button asChild size="sm" variant="ghost">
-                  <a href={materialFallbackUrl(activeMaterial)} target="_blank" rel="noreferrer">
+                  <a href={materialFastOpenUrl(activeMaterial)} target="_blank" rel="noreferrer">
                     <ExternalLink className="mr-1.5 h-4 w-4" />Open PDF in new tab
                   </a>
                 </Button>
@@ -196,14 +211,14 @@ function MaterialsPage() {
                 <div className="absolute inset-x-3 top-12 z-10 rounded-md bg-background/95 p-3 text-center shadow-sm">
                   <p className="mb-2 text-xs text-muted-foreground">PDF is taking longer than expected.</p>
                   <Button asChild size="sm" variant="outline">
-                    <a href={materialFallbackUrl(activeMaterial)} target="_blank" rel="noreferrer">Open PDF in new tab</a>
+                    <a href={materialFastOpenUrl(activeMaterial)} target="_blank" rel="noreferrer">Open PDF in new tab</a>
                   </Button>
                 </div>
               )}
               <iframe
-                key={`${activeMaterial.id}-${materialPreviewUrl(activeMaterial)}`}
+                key={`${activeMaterial.id}-${materialViewerUrl(activeMaterial)}`}
                 title={activeMaterial.title}
-                src={materialPreviewUrl(activeMaterial)}
+                src={materialViewerUrl(activeMaterial)}
                 className="h-[72vh] min-h-[420px] w-full max-w-full border-0 md:min-h-[620px]"
                 loading="eager"
                 onLoad={() => {

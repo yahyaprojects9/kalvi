@@ -15,6 +15,7 @@ import {
   updateStudentProblem,
 } from "../repositories/content.repository.js";
 import { getSupabase } from "../config/supabase.js";
+import { getDatabase } from "../config/database.js";
 import { requireStudent } from "./auth.routes.js";
 
 const router = Router();
@@ -115,6 +116,18 @@ function validateId(req, res) {
   return id;
 }
 
+async function resolveStudentUuid(student) {
+  const id = String(student?.id ?? "").trim();
+  if (UUID_PATTERN.test(id)) return id;
+  const mobileNumber = String(student?.mobile_number ?? student?.mobile ?? "").replace(/\D/g, "").slice(-10);
+  if (!mobileNumber) return null;
+  const { rows } = await getDatabase().query(
+    "select id from public.students where mobile_number = $1 limit 1",
+    [mobileNumber],
+  );
+  return rows[0]?.id ?? null;
+}
+
 function validateComplaint(body) {
   const complaintType = requiredString(body, "complaint_type", 100);
   if (complaintType.error) return { error: complaintType.error };
@@ -137,6 +150,10 @@ function validateComplaint(body) {
   const klass = requiredString(body, "class", 100);
   if (klass.error) return { error: klass.error };
 
+  const studentId = typeof body?.student_id === "string" && UUID_PATTERN.test(body.student_id.trim())
+    ? body.student_id.trim()
+    : null;
+
   return {
     value: {
       complaint_type: complaintType.value,
@@ -145,6 +162,7 @@ function validateComplaint(body) {
       district: district.value,
       school_name: schoolName.value,
       class: klass.value,
+      student_id: studentId,
     },
   };
 }
@@ -242,8 +260,13 @@ router.post("/feedback", asyncRoute(async (req, res) => {
     return res.status(400).json({ error: "message is required" });
   }
 
+  const studentId = await resolveStudentUuid(session.student);
+  if (!studentId) {
+    return res.status(400).json({ error: "A real student profile is required before submitting feedback" });
+  }
+
   const feedback = await createFeedback({
-    student_id: session.student.id,
+    student_id: studentId,
     student_name: session.student.full_name,
     mobile_number: session.student.mobile_number,
     category: "general",
@@ -258,7 +281,8 @@ router.post("/feedback", asyncRoute(async (req, res) => {
 router.get("/feedback/my", asyncRoute(async (req, res) => {
   const session = await requireStudent(req, res);
   if (!session) return;
-  res.json({ success: true, data: await listFeedbackByStudent(session.student.id) });
+  const studentId = await resolveStudentUuid(session.student);
+  res.json({ success: true, data: studentId ? await listFeedbackByStudent(studentId) : [] });
 }));
 
 router.post("/student-problems", asyncRoute(async (req, res) => {
@@ -353,7 +377,11 @@ router.post("/complaints", asyncRoute(async (req, res) => {
     return res.status(400).json({ success: false, error: validation.error });
   }
 
-  const complaint = await createComplaint(validation.value);
+  const studentId = validation.value.student_id ?? await resolveStudentUuid({
+    id: req.body?.student_id,
+    mobile_number: req.body?.mobile_number,
+  });
+  const complaint = await createComplaint({ ...validation.value, student_id: studentId });
   res.status(201).json({
     success: true,
     data: {

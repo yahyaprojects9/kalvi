@@ -1,6 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
-  LayoutDashboard, Users, MessageSquare, Megaphone, CalendarDays, BarChart3, AlertCircle, BookOpen,
+  LayoutDashboard, Users, MessageSquare, Megaphone, CalendarDays, BarChart3, AlertCircle, BookOpen, Recycle,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -15,13 +15,17 @@ const items = [
   { title: "Announcements", url: "/announcements", icon: Megaphone },
   { title: "Events", url: "/events", icon: CalendarDays },
   { title: "Content", url: "/content", icon: BookOpen },
+  { title: "Recycle", url: "/recycle", icon: Recycle },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
 ];
 
 export function AppSidebar() {
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = state === "collapsed";
   const pathname = useRouterState({ select: (r) => r.location.pathname });
+  const closeMobileMenu = () => {
+    if (isMobile) setOpenMobile(false);
+  };
 
   return (
     <Sidebar collapsible="icon">
@@ -48,7 +52,11 @@ export function AppSidebar() {
                 return (
                   <SidebarMenuItem key={item.url}>
                     <SidebarMenuButton asChild isActive={active} tooltip={item.title}>
-                      <Link to={item.url} className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
+                      <Link
+                        to={item.url}
+                        onClick={closeMobileMenu}
+                        className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center"
+                      >
                         <item.icon className="h-4 w-4 shrink-0" />
                         {!collapsed && <span>{item.title}</span>}
                       </Link>

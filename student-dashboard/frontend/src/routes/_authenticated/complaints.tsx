@@ -67,6 +67,8 @@ function ComplaintPage() {
       const result = await apiRequest<ComplaintResponse>("/api/complaints", {
         method: "POST",
         body: {
+          student_id: profile?.id,
+          mobile_number: profile?.mobile_number,
           complaint_type: complaintType,
           subject: subject.trim(),
           description: description.trim(),

@@ -104,8 +104,14 @@ function FeedbackPage() {
           <div className="mt-4 space-y-2">
             {myFeedback.slice(0, 5).map((item) => (
               <Card key={item.id} className="border-0 p-3 text-xs shadow-sm">
-                <p className="font-semibold">{item.status ?? "new"}</p>
+                <p className="font-semibold capitalize">{item.status ?? "new"}</p>
                 <p className="mt-1 text-muted-foreground">{item.message}</p>
+                {item.admin_response?.trim() && (
+                  <div className="mt-2 rounded-md bg-primary/10 p-2">
+                    <p className="text-[10px] font-semibold uppercase text-primary">{t("adminReply")}</p>
+                    <p className="mt-0.5 text-foreground">{item.admin_response}</p>
+                  </div>
+                )}
               </Card>
             ))}
           </div>

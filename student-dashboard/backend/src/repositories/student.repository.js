@@ -1,5 +1,8 @@
 import bcrypt from "bcrypt";
 import { randomUUID } from "node:crypto";
+import { createClient } from "@supabase/supabase-js";
+import { getDatabase } from "../config/database.js";
+import { enableLocalTlsFallback, env } from "../config/env.js";
 import { getSupabase } from "../config/supabase.js";
 
 const STUDENT_FIELDS = "id, full_name, gender, mobile_number, school_name, class, district, created_at, updated_at";
@@ -59,6 +62,21 @@ const MOCK_STUDENTS = {
     district: "Coimbatore",
   },
 };
+
+let authClient;
+
+function getAuthClient() {
+  if (!authClient) {
+    enableLocalTlsFallback();
+    authClient = createClient(env.supabaseUrl, env.supabaseAnonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+  }
+  return authClient;
+}
 
 export function normalizeClass(value) {
   const normalized = String(value ?? "").trim().toUpperCase();
@@ -169,30 +187,26 @@ export async function getStudentBySession(token) {
 }
 
 async function getSupabaseStudentSession(token) {
-  const supabase = getSupabase();
-  const { data: userData, error: userError } = await supabase.auth.getUser(token);
+  const { data: userData, error: userError } = await getAuthClient().auth.getUser(token);
   if (userError || !userData.user) return null;
 
-  const { data: authStudent, error: authStudentError } = await supabase
-    .from("students")
-    .select(STUDENT_FIELDS)
-    .eq("auth_user_id", userData.user.id)
-    .maybeSingle();
-  if (authStudentError) throw authStudentError;
-  if (authStudent) return { sessionId: token, student: sanitizeStudent(authStudent) };
+  const db = getDatabase();
+  const authStudent = await db.query(
+    `select ${STUDENT_FIELDS} from public.students where auth_user_id = $1 limit 1`,
+    [userData.user.id],
+  );
+  if (authStudent.rows[0]) return { sessionId: token, student: sanitizeStudent(authStudent.rows[0]) };
 
   const mobileNumber = DEMO_EMAILS[String(userData.user.email ?? "").toLowerCase()];
   if (!mobileNumber) return null;
 
-  const { data: mobileStudent, error: mobileStudentError } = await supabase
-    .from("students")
-    .select(STUDENT_FIELDS)
-    .eq("mobile_number", mobileNumber)
-    .maybeSingle();
-  if (mobileStudentError) throw mobileStudentError;
-  if (!mobileStudent) return null;
+  const mobileStudent = await db.query(
+    `select ${STUDENT_FIELDS} from public.students where mobile_number = $1 limit 1`,
+    [mobileNumber],
+  );
+  if (!mobileStudent.rows[0]) return null;
 
-  return { sessionId: token, student: sanitizeStudent(mobileStudent) };
+  return { sessionId: token, student: sanitizeStudent(mobileStudent.rows[0]) };
 }
 
 async function getMockStudentSession(token) {
@@ -200,26 +214,32 @@ async function getMockStudentSession(token) {
   const mockStudent = MOCK_STUDENTS[key];
   if (!mockStudent) return null;
 
-  const supabase = getSupabase();
-  const { data: existing, error: existingError } = await supabase
-    .from("students")
-    .select(STUDENT_FIELDS)
-    .eq("mobile_number", mockStudent.mobile_number)
-    .maybeSingle();
-  if (existingError) throw existingError;
-  if (existing) return { sessionId: token, student: sanitizeStudent(existing) };
+  const db = getDatabase();
+  const existing = await db.query(
+    `select ${STUDENT_FIELDS} from public.students where mobile_number = $1 limit 1`,
+    [mockStudent.mobile_number],
+  );
+  if (existing.rows[0]) return { sessionId: token, student: sanitizeStudent(existing.rows[0]) };
 
-  const { data, error } = await supabase
-    .from("students")
-    .insert({
-      ...mockStudent,
-      password_hash: "mock-account",
-    })
-    .select(STUDENT_FIELDS)
-    .single();
-  if (error) throw error;
+  const inserted = await db.query(
+    `
+      insert into public.students
+        (full_name, gender, mobile_number, school_name, class, district, password_hash)
+      values
+        ($1, $2, $3, $4, $5, $6, 'mock-account')
+      returning ${STUDENT_FIELDS}
+    `,
+    [
+      mockStudent.full_name,
+      mockStudent.gender,
+      mockStudent.mobile_number,
+      mockStudent.school_name,
+      mockStudent.class,
+      mockStudent.district,
+    ],
+  );
 
-  return { sessionId: token, student: sanitizeStudent(data) };
+  return { sessionId: token, student: sanitizeStudent(inserted.rows[0]) };
 }
 
 export async function endStudentSession(token) {

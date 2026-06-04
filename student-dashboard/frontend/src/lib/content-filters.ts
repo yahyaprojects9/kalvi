@@ -50,6 +50,12 @@ export function eventVisibleToProfile(
   return classOk && districtOk;
 }
 
+function sameStudentTarget(targetValue: string | null | undefined, profileId: string | null | undefined) {
+  const target = String(targetValue ?? "").trim().toLowerCase();
+  const profile = String(profileId ?? "").trim().toLowerCase();
+  return Boolean(target && profile && target === profile);
+}
+
 export function notificationVisibleToProfile(
   notice: Pick<Notice, "target_type" | "target_value">,
   profile: Profile | null | undefined,
@@ -57,6 +63,7 @@ export function notificationVisibleToProfile(
 ) {
   if (!isStudent(role)) return true;
   if (notice.target_type === "all") return true;
+  if (notice.target_type === "student") return sameStudentTarget(notice.target_value, profile?.id);
   if (notice.target_type === "class") return classesMatch(notice.target_value, profile?.class);
   if (notice.target_type === "district") return notice.target_value === profile?.district;
   if (notice.target_type === "school") return notice.target_value === profile?.school_name;

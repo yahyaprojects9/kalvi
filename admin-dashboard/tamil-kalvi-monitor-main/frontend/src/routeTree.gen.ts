@@ -13,6 +13,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedStudentsRouteImport } from './routes/_authenticated/students'
+import { Route as AuthenticatedRecycleRouteImport } from './routes/_authenticated/recycle'
 import { Route as AuthenticatedFeedbackRouteImport } from './routes/_authenticated/feedback'
 import { Route as AuthenticatedEventsRouteImport } from './routes/_authenticated/events'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -39,6 +40,11 @@ const IndexRoute = IndexRouteImport.update({
 const AuthenticatedStudentsRoute = AuthenticatedStudentsRouteImport.update({
   id: '/students',
   path: '/students',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedRecycleRoute = AuthenticatedRecycleRouteImport.update({
+  id: '/recycle',
+  path: '/recycle',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedFeedbackRoute = AuthenticatedFeedbackRouteImport.update({
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/events': typeof AuthenticatedEventsRoute
   '/feedback': typeof AuthenticatedFeedbackRoute
+  '/recycle': typeof AuthenticatedRecycleRoute
   '/students': typeof AuthenticatedStudentsRoute
 }
 export interface FileRoutesByTo {
@@ -107,6 +114,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/events': typeof AuthenticatedEventsRoute
   '/feedback': typeof AuthenticatedFeedbackRoute
+  '/recycle': typeof AuthenticatedRecycleRoute
   '/students': typeof AuthenticatedStudentsRoute
 }
 export interface FileRoutesById {
@@ -122,6 +130,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/events': typeof AuthenticatedEventsRoute
   '/_authenticated/feedback': typeof AuthenticatedFeedbackRoute
+  '/_authenticated/recycle': typeof AuthenticatedRecycleRoute
   '/_authenticated/students': typeof AuthenticatedStudentsRoute
 }
 export interface FileRouteTypes {
@@ -137,6 +146,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/events'
     | '/feedback'
+    | '/recycle'
     | '/students'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -150,6 +160,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/events'
     | '/feedback'
+    | '/recycle'
     | '/students'
   id:
     | '__root__'
@@ -164,6 +175,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/events'
     | '/_authenticated/feedback'
+    | '/_authenticated/recycle'
     | '/_authenticated/students'
   fileRoutesById: FileRoutesById
 }
@@ -201,6 +213,13 @@ declare module '@tanstack/react-router' {
       path: '/students'
       fullPath: '/students'
       preLoaderRoute: typeof AuthenticatedStudentsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/recycle': {
+      id: '/_authenticated/recycle'
+      path: '/recycle'
+      fullPath: '/recycle'
+      preLoaderRoute: typeof AuthenticatedRecycleRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/feedback': {
@@ -271,6 +290,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedEventsRoute: typeof AuthenticatedEventsRoute
   AuthenticatedFeedbackRoute: typeof AuthenticatedFeedbackRoute
+  AuthenticatedRecycleRoute: typeof AuthenticatedRecycleRoute
   AuthenticatedStudentsRoute: typeof AuthenticatedStudentsRoute
 }
 
@@ -283,6 +303,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedEventsRoute: AuthenticatedEventsRoute,
   AuthenticatedFeedbackRoute: AuthenticatedFeedbackRoute,
+  AuthenticatedRecycleRoute: AuthenticatedRecycleRoute,
   AuthenticatedStudentsRoute: AuthenticatedStudentsRoute,
 }
 

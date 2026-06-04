@@ -1,18 +1,56 @@
-import { getSupabase } from "../config/supabase.js";
+import { getDatabase } from "../config/database.js";
 
 const PUBLIC_TABLES = new Set(["schools", "materials", "videos", "events", "notifications"]);
+const FILTER_COLUMNS = {
+  schools: new Set(["district"]),
+  materials: new Set(["class", "subject", "term", "material_type", "is_active"]),
+  videos: new Set(["class", "subject", "term", "is_active"]),
+  events: new Set(["class", "target_class", "district", "is_active"]),
+  notifications: new Set(["target_class", "target_type", "district", "is_active"]),
+  student_problems: new Set(["student_id", "district", "class", "status"]),
+  complaints: new Set(["district", "school_name", "class", "complaint_type", "status"]),
+};
 
-function applyCommonFilters(query, filters) {
-  if (filters.class) query = query.eq("class", filters.class);
-  if (filters.type) query = query.eq("material_type", filters.type);
-  if (filters.material_type) query = query.eq("material_type", filters.material_type);
-  if (filters.target_class) query = query.eq("target_class", filters.target_class);
-  if (filters.subject) query = query.eq("subject", filters.subject);
-  if (filters.term) query = query.eq("term", filters.term);
-  if (filters.district) query = query.eq("district", filters.district);
-  if (filters.target_type) query = query.eq("target_type", filters.target_type);
-  if ("is_active" in filters) query = query.eq("is_active", filters.is_active);
-  return query;
+function normalizeBoolean(value) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") return value.toLowerCase() !== "false";
+  return Boolean(value);
+}
+
+function filterEntries(table, filters = {}) {
+  const allowed = FILTER_COLUMNS[table] ?? new Set();
+  const entries = [];
+  for (const [rawKey, rawValue] of Object.entries(filters)) {
+    if (rawValue === undefined || rawValue === null || rawValue === "") continue;
+    const key = rawKey === "type" ? "material_type" : rawKey;
+    if (!allowed.has(key)) continue;
+    entries.push([key, key === "is_active" ? normalizeBoolean(rawValue) : rawValue]);
+  }
+  return entries;
+}
+
+function whereClause(table, filters = {}, startIndex = 1) {
+  const values = [];
+  const clauses = [];
+  for (const [key, value] of filterEntries(table, filters)) {
+    values.push(value);
+    clauses.push(`"${key}" = $${startIndex + values.length - 1}`);
+  }
+  return {
+    sql: clauses.length ? ` where ${clauses.join(" and ")}` : "",
+    values,
+  };
+}
+
+function updateClause(patch, allowedColumns, startIndex = 1) {
+  const values = [];
+  const assignments = [];
+  for (const [key, value] of Object.entries(patch ?? {})) {
+    if (!allowedColumns.has(key)) continue;
+    values.push(value);
+    assignments.push(`"${key}" = $${startIndex + values.length - 1}`);
+  }
+  return { assignments, values };
 }
 
 function normalizeContentRow(table, row) {
@@ -57,23 +95,32 @@ export async function listRows(table, filters = {}) {
     throw new Error(`Unsupported table: ${table}`);
   }
 
-  let query = getSupabase().from(table).select("*");
   const activeFilters = table === "schools" ? filters : { ...filters, is_active: filters.is_active ?? true };
-  query = applyCommonFilters(query, activeFilters);
+  const notificationTargetClass = table === "notifications" ? activeFilters.target_class : null;
+  const queryFilters = table === "notifications" && notificationTargetClass
+    ? { ...activeFilters, target_class: undefined }
+    : activeFilters;
+  const where = whereClause(table, queryFilters);
+  const values = [...where.values];
+  const clauses = where.sql ? [where.sql.slice(" where ".length)] : [];
 
+  if (table === "notifications" && notificationTargetClass) {
+    values.push(notificationTargetClass);
+    clauses.push(`(target_class is null or target_class = $${values.length} or target_type = 'all' or target_type = 'student')`);
+  }
+  const finalWhere = clauses.length ? ` where ${clauses.join(" and ")}` : "";
+
+  let order = " order by created_at desc";
   if (table === "events") {
-    query = query.order("event_date", { ascending: true });
+    order = " order by event_date asc";
   } else if (table === "videos") {
-    query = query.order("display_order", { ascending: true }).order("created_at", { ascending: false });
+    order = " order by display_order asc, created_at desc";
   } else if (table === "materials") {
-    query = query.order("display_order", { ascending: true }).order("created_at", { ascending: false });
-  } else {
-    query = query.order("created_at", { ascending: false });
+    order = " order by display_order asc, created_at desc";
   }
 
-  const { data, error } = await query;
-  if (error) throw error;
-  return (data ?? []).map((row) => normalizeContentRow(table, row));
+  const { rows } = await getDatabase().query(`select * from public.${table}${finalWhere}${order}`, values);
+  return rows.map((row) => normalizeContentRow(table, row));
 }
 
 export async function getRow(table, id) {
@@ -81,133 +128,140 @@ export async function getRow(table, id) {
     throw new Error(`Unsupported table: ${table}`);
   }
 
-  const { data, error } = await getSupabase()
-    .from(table)
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw error;
-  return normalizeContentRow(table, data);
+  const { rows } = await getDatabase().query(`select * from public.${table} where id = $1 limit 1`, [id]);
+  return normalizeContentRow(table, rows[0] ?? null);
 }
 
 export async function createFeedback(row) {
-  const { data, error } = await getSupabase().from("feedback").insert(row).select("*").single();
-  if (error) throw error;
-  return data;
+  const { rows } = await getDatabase().query(
+    `
+      insert into public.feedback
+        (student_id, student_name, mobile_number, category, district, status, message)
+      values
+        ($1, $2, $3, $4, $5, $6, $7)
+      returning *
+    `,
+    [
+      row.student_id,
+      row.student_name ?? null,
+      row.mobile_number ?? null,
+      row.category ?? "general",
+      row.district ?? null,
+      row.status ?? "new",
+      row.message,
+    ],
+  );
+  return rows[0];
 }
 
 export async function listFeedbackByStudent(studentId) {
-  const { data, error } = await getSupabase()
-    .from("feedback")
-    .select("*")
-    .eq("student_id", studentId)
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return data;
+  const { rows } = await getDatabase().query(
+    "select * from public.feedback where student_id = $1 order by created_at desc",
+    [studentId],
+  );
+  return rows;
 }
 
 export async function createStudentProblem(row) {
-  const { data, error } = await getSupabase()
-    .from("student_problems")
-    .insert(row)
-    .select("*")
-    .single();
-  if (error) throw error;
-  return data;
+  const { rows } = await getDatabase().query(
+    `
+      insert into public.student_problems
+        (student_id, name, class, district, title, description, problem_description, category, status)
+      values
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      returning *
+    `,
+    [
+      row.student_id,
+      row.name ?? null,
+      row.class ?? null,
+      row.district ?? null,
+      row.title,
+      row.description,
+      row.problem_description ?? row.description,
+      row.category ?? null,
+      row.status ?? "open",
+    ],
+  );
+  return rows[0];
 }
 
 export async function listStudentProblems(filters = {}) {
-  let query = getSupabase().from("student_problems").select("*").order("created_at", { ascending: false });
-
-  if (filters.student_id) query = query.eq("student_id", filters.student_id);
-  if (filters.district) query = query.eq("district", filters.district);
-  if (filters.class) query = query.eq("class", filters.class);
-  if (filters.status) query = query.eq("status", filters.status);
-
-  const { data, error } = await query;
-  if (error) throw error;
-  return data;
+  const where = whereClause("student_problems", filters);
+  const { rows } = await getDatabase().query(
+    `select * from public.student_problems${where.sql} order by created_at desc`,
+    where.values,
+  );
+  return rows;
 }
 
 export async function getStudentProblem(id) {
-  const { data, error } = await getSupabase()
-    .from("student_problems")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw error;
-  return data;
+  const { rows } = await getDatabase().query("select * from public.student_problems where id = $1 limit 1", [id]);
+  return rows[0] ?? null;
 }
 
 export async function updateStudentProblem(id, patch) {
-  const { data, error } = await getSupabase()
-    .from("student_problems")
-    .update({ ...patch, updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .select("*")
-    .maybeSingle();
-  if (error) throw error;
-  return data;
+  const allowed = new Set(["title", "description", "category", "status", "problem_description"]);
+  const update = updateClause({ ...patch, updated_at: new Date().toISOString() }, new Set([...allowed, "updated_at"]));
+  if (!update.assignments.length) return await getStudentProblem(id);
+  const { rows } = await getDatabase().query(
+    `update public.student_problems set ${update.assignments.join(", ")} where id = $${update.values.length + 1} returning *`,
+    [...update.values, id],
+  );
+  return rows[0] ?? null;
 }
 
 export async function deleteStudentProblem(id) {
-  const { data, error } = await getSupabase()
-    .from("student_problems")
-    .delete()
-    .eq("id", id)
-    .select("id")
-    .maybeSingle();
-  if (error) throw error;
-  return data;
+  const { rows } = await getDatabase().query("delete from public.student_problems where id = $1 returning id", [id]);
+  return rows[0] ?? null;
 }
 
 export async function createComplaint(row) {
-  const { data, error } = await getSupabase()
-    .from("complaints")
-    .insert(row)
-    .select("*")
-    .single();
-  if (error) throw error;
-  return data;
+  const { rows } = await getDatabase().query(
+    `
+      insert into public.complaints
+        (student_id, complaint_type, subject, description, district, school_name, class, status)
+      values
+        ($1, $2, $3, $4, $5, $6, $7, coalesce($8, 'pending'))
+      returning *
+    `,
+    [
+      row.student_id ?? null,
+      row.complaint_type,
+      row.subject,
+      row.description,
+      row.district,
+      row.school_name,
+      row.class,
+      row.status ?? "pending",
+    ],
+  );
+  return rows[0];
 }
 
 export async function listComplaints(filters = {}) {
-  let query = getSupabase().from("complaints").select("*").order("created_at", { ascending: false });
-
-  if (filters.district) query = query.eq("district", filters.district);
-  if (filters.school_name) query = query.eq("school_name", filters.school_name);
-  if (filters.class) query = query.eq("class", filters.class);
-  if (filters.complaint_type) query = query.eq("complaint_type", filters.complaint_type);
-  if (filters.status) query = query.eq("status", filters.status);
-
-  const { data, error } = await query;
-  if (error) throw error;
-  return data;
+  const where = whereClause("complaints", filters);
+  const { rows } = await getDatabase().query(
+    `select * from public.complaints${where.sql} order by created_at desc`,
+    where.values,
+  );
+  return rows;
 }
 
 export async function getComplaint(id) {
-  const { data, error } = await getSupabase()
-    .from("complaints")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw error;
-  return data;
+  const { rows } = await getDatabase().query("select * from public.complaints where id = $1 limit 1", [id]);
+  return rows[0] ?? null;
 }
 
 export async function updateComplaintStatus(id, status) {
-  const { data, error } = await getSupabase()
-    .from("complaints")
-    .update({ status })
-    .eq("id", id)
-    .select("*")
-    .maybeSingle();
-  if (error) throw error;
-  return data;
+  const { rows } = await getDatabase().query(
+    "update public.complaints set status = $1, updated_at = $2 where id = $3 returning *",
+    [status, new Date().toISOString(), id],
+  );
+  return rows[0] ?? null;
 }
 
 export async function databasePing() {
-  const { error } = await getSupabase().from("schools").select("id", { head: true, count: "exact" });
-  if (error) throw error;
+  await getDatabase().query("select 1");
   return { status: "ok" };
 }

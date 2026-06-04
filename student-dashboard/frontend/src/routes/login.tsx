@@ -75,7 +75,15 @@ function LoginPage() {
           <form onSubmit={handleStudentLogin} className="space-y-4">
             <div>
               <Label htmlFor="mobile">{t("mobileLogin")}</Label>
-              <Input id="mobile" inputMode="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} />
+              <Input
+                id="mobile"
+                type="tel"
+                inputMode="numeric"
+                autoComplete="tel"
+                maxLength={12}
+                value={mobile}
+                onChange={(e) => setMobile(e.target.value)}
+              />
             </div>
             <div>
               <Label htmlFor="spw">{t("password")}</Label>
@@ -83,6 +91,7 @@ function LoginPage() {
                 <Input
                   id="spw"
                   type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
                   value={studentPw}
                   onChange={(e) => setStudentPw(e.target.value)}
                   className="pr-11"

@@ -285,7 +285,10 @@ alter table public.complaints add column if not exists description text;
 alter table public.complaints add column if not exists district text;
 alter table public.complaints add column if not exists school_name text;
 alter table public.complaints add column if not exists class text;
+alter table public.complaints add column if not exists student_id uuid references public.students(id) on delete set null;
 alter table public.complaints add column if not exists status text default 'pending';
+alter table public.complaints add column if not exists admin_response text;
+alter table public.complaints add column if not exists updated_at timestamptz default now();
 
 grant select, insert, update on table public.complaints to authenticated;
 grant all on table public.complaints to service_role;
