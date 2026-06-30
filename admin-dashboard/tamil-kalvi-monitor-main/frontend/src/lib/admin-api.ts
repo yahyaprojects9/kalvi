@@ -2,9 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const KEY = "kalvi_admin_auth";
 export type AdminAuth = { token: string; admin: { id: string; name?: string; email: string; role: string } };
-const API_BASE_URL = String(
-  import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? "http://localhost:4000" : ""),
-).replace(/\/$/, "");
+const API_BASE_URL = import.meta.env.DEV ? String(import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000").replace(/\/$/, "") : "";
 
 export function getAdminAuth(): AdminAuth | null {
   try { return JSON.parse(localStorage.getItem(KEY) ?? "null"); } catch { return null; }
@@ -31,9 +29,27 @@ async function backendAdminRequest<T>(path: string, options: RequestInit = {}): 
 
 async function isAdmin(userId?: string) {
   if (!userId) return false;
-  const { data, error } = await supabase.from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle();
-  if (error) throw new Error(error.message);
-  return Boolean(data);
+  const client = supabase as any;
+  const roleResult = await client
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("role", "admin")
+    .maybeSingle();
+  if (roleResult.error && !/schema cache|relation .* does not exist/i.test(roleResult.error.message)) {
+    throw new Error(roleResult.error.message);
+  }
+  if (roleResult.data) return true;
+
+  const adminResult = await client
+    .from("admins")
+    .select("id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (adminResult.error && !/schema cache|relation .* does not exist/i.test(adminResult.error.message)) {
+    throw new Error(adminResult.error.message);
+  }
+  return Boolean(adminResult.data);
 }
 
 async function requireAdmin() {
@@ -200,18 +216,21 @@ function idFromPath(path: string) {
 }
 
 export async function adminApi<T>(path: string, options: RequestInit = {}): Promise<T> {
-  if (path.startsWith("/api/admin")) {
-    return backendAdminRequest<T>(path, options);
-  }
-
   const method = options.method ?? "GET";
   const body = options.body ? JSON.parse(String(options.body)) : {};
 
   if (path === "/api/admin/login" && method === "POST") {
     const { data, error } = await supabase.auth.signInWithPassword({ email: body.email, password: body.password });
-    if (error) throw new Error("Invalid admin credentials");
+    if (error) {
+      if (API_BASE_URL) return backendAdminRequest<T>(path, options);
+      throw new Error("Invalid admin credentials");
+    }
     if (!(await isAdmin(data.user?.id))) throw new Error("Admin access is required");
     return { token: data.session?.access_token ?? "", admin: { id: data.user!.id, email: data.user!.email!, role: "admin" } } as T;
+  }
+
+  if (API_BASE_URL && path.startsWith("/api/admin")) {
+    return backendAdminRequest<T>(path, options);
   }
 
   if (path === "/api/admin/me") {
